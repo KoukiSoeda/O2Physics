@@ -5,6 +5,7 @@
 #include <cmath>
 #include "Framework/runDataProcessing.h"
 #include "Framework/AnalysisTask.h"
+#include "Framework/AnalysisDataModel.h"
 #include "Common/DataModel/TrackSelectionTables.h"
 #include "TDatabasePDG.h"
 #include "MathUtils/Utils.h"
@@ -24,50 +25,60 @@ struct MyAnalysisTask {
   {
     // define axes you want to use
     const AxisSpec axisVertex{nBinsVer, -30, +30, "cm"};
+    const AxisSpec axistrackType{6, -0.5, 5.5, "TrackType"};
     const AxisSpec axisCounter{1, 0, +1, ""};
-    const AxisSpec axisChi2(505, -5, +500, "");
-    const AxisSpec axisGMTpdg(2000, -1000, +1000, "");
+    const AxisSpec axisChi2(505, -4.5, +500.5, "");
+    const AxisSpec axisPDG(2001, -1000.5, +1000.5, "");
     const AxisSpec axisEta{30, -1.5, +1.5, "#eta"};
     const AxisSpec axisPt{nBinsPt, 0, 10, "p_{T}"};
 
     // create histograms
-    histod.add("CollisionPos", "CollisionPos", kTH1F, {axisVertex});
+    histos.add("CollisionPos", "CollisionPos", kTH1F, {axisVertex});
+    histos.add("TrackType", "TrackType", kTH1F, {axistrackType});
     histos.add("FwdParticleCounter", "FwdParticleCounter", kTH1F, {axisCounter});
     histos.add("FwdMuonCounter", "FwdMuonCounter", kTH1F, {axisCounter});
-    histos.add("GlobalMuonTrackPDG", "GlobalMuonTrackPDG", kTH1F, {})
+    histos.add("GlobalMuonTrackPDG", "GlobalMuonTrackPDG", kTH1F, {axisPDG});
     histos.add("Chi2GMT", "Chi2GMT", kTH1F, {axisChi2});
+    histos.add("muonMomPDG", "muonMomPDG", kTH1F, {axisPDG});
     histos.add("MFTParticleCounter", "MFTParticleCounter", kTH1F, {axisCounter});
     histos.add("MFTMuonCounter", "MFTMuonCounter", kTH1F, {axisCounter});
     
   }
 
-  void process(soa::Join<aod::Collisions, aod::McCollisionLabels>::iterator const& collision, 
-               soa::Join<aod::FwdTracks, aod::McFwdTrackLabels> const& fwdtracks, 
+  void process(soa::Join<aod::Collisions, aod::McCollisionLabels>::iterator const& collision,
+               soa::Join<aod::FwdTracks, aod::McFwdTrackLabels, aod::FwdTracksDCA> const& fwdtracks, 
                soa::Join<aod::MFTTracks, aod::McMFTTrackLabels> const& mfttracks,
                aod::McParticles const& MCparticle,
                aod::McCollisions const&)
   {
     if(collision.has_mcCollision()){
       //Informatin of MC collision
-      auto mcCol_z = collision.mcCollison().posZ();
+      auto mcCol_z = collision.mcCollision().posZ();
       histos.fill(HIST("CollisionPos"), mcCol_z);
 
       //Information of FwdTracks
       for(auto& fwdtrack : fwdtracks){
+        histos.fill(HIST("TrackType"), fwdtrack.trackType());
+
         if(!fwdtrack.has_mcParticle()) continue;
         auto mcParticle_fwd = fwdtrack.mcParticle();
         histos.fill(HIST("FwdParticleCounter"), 0.5);
-        if(fabs(mcParticle_fwd.pdgCode())==13) histos.fill(HIST("FwdMuonCounter"), 0.5);
+        auto fwdTrackPDG = mcParticle_fwd.pdgCode();
 
-        if(fwdtrack.trackType()!=0) continue; //Required MFT-MCH-MID
-        auto chi2GMT = fwdtrack.chi2MatchMCHMFT();
-        auto GMTpdg = mcParticle_fwd.pdgCode();
-        histos.fill(HIST("GlobalMuonTrackPDG"), GMTpdg);
-        histos.fill(HIST("Chi2GMT"), chi2GMT);
+        if(fabs(fwdTrackPDG)==13) histos.fill(HIST("FwdMuonCounter"), 0.5);
 
-        if(chi2GMT==-1) continue;
-        if(fabs(GMTpdg)!=13) continue;
-
+        if(fwdtrack.trackType()==0){//Required MFT-MCH-MID
+          auto chi2GMT = fwdtrack.chi2MatchMCHMFT();
+          histos.fill(HIST("GlobalMuonTrackPDG"), fwdTrackPDG);
+          histos.fill(HIST("Chi2GMT"), chi2GMT);
+          if(chi2GMT==-1) continue;
+          if(fabs(fwdTrackPDG)!=13) continue;
+          if(mcParticle_fwd.has_mothers()){
+            auto mcMom = MCparticle.rawIteratorAt(mcParticle_fwd.mothersIds()[0]);
+            auto mcMomPDG = mcMom.pdgCode();
+            histos.fill(HIST("muonMomPDG"), mcMomPDG);
+          }
+        }
       }
       //Information of MFTTracks
       for(auto& mfttrack : mfttracks){
