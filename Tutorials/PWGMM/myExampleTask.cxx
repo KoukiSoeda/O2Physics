@@ -23,6 +23,8 @@ struct MyAnalysisTask {
   Configurable<int> nBinsXY{"nBinsXY", 10000, "N bins in X and Y axis"};
   Configurable<int> nBinsZ{"nBinsZ", 5000, "N bins in Z axis"};
   Configurable<int> nBinsDCA{"nBinsDCA", 5000, "N bins in DCA"};
+  Configurable<int> nBinsDCAT{"nBinsDCAT", 1000, "N bins in DCAT"};
+  Configurable<int> nBinsDist{"nBinsDist", 500, ""};
   Configurable<int> fwdTrackType{"fwdTrackType", 0, "N TrackType in fwd"};
   Configurable<int> fwdTrackType2{"fwdTrackType2", 2, "N TrackType in fwd2"};
 
@@ -34,13 +36,15 @@ struct MyAnalysisTask {
     const AxisSpec axisCounter{1, 0, +1, ""};
     const AxisSpec axisChi2(505, -4.5, +500.5, "");
     const AxisSpec axisPDG(19, -0.5, +18.5, "");
-    const AxisSpec axisX(nBinsXY, -100, 100, "x(cm)");
-    const AxisSpec axisY(nBinsXY, -100, 100, "y(cm)");
+    const AxisSpec axisX(nBinsXY, -10, 10, "x(cm)");
+    const AxisSpec axisY(nBinsXY, -10, 10, "y(cm)");
     const AxisSpec axisZ(nBinsZ, -50, 50, "z(cm)");
+    const AxisSpec axisDist(nBinsDist, -0.1, 50, "z(cm)");
     const AxisSpec axisDCAX(nBinsDCA, -1, 1, "x(cm)");
     const AxisSpec axisDCAY(nBinsDCA, -1, 1, "y(cm)");
+    const AxisSpec axisDCAT(nBinsDCAT, -0.01, +1, "cm");
     const AxisSpec axisEta{30, -1.5, +1.5, "#eta"};
-    const AxisSpec axisPt{nBinsPt, 0, 5, "p_{T}"};
+    const AxisSpec axisPt{nBinsPt, 0, 10, "p_{T}"};
 
     // create histograms
     histos.add("CollisionPos", "CollisionPos", kTH1F, {axisVertex});
@@ -54,19 +58,27 @@ struct MyAnalysisTask {
     histos.add("muonMomPDG", "muonMomPDG", kTH1F, {axisPDG});
     histos.add("pi2mu_DCA_X", "DCA_X", kTH1F, {axisDCAX});
     histos.add("pi2mu_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
+    histos.add("pi2mu_DCAT", "pi2mu_DCAT", kTH1F, {axisDCAT});
     histos.add("D0DecayX", "D0DecayX", kTH1F, {axisX});
     histos.add("D0DecayY", "D0DecayY", kTH1F, {axisY});
     histos.add("D0DecayZ", "D0DecayZ", kTH1F, {axisZ});
+    histos.add("Distance_D0_z", "Distance_D0_z", kTH1F, {axisDist});
     histos.add("D02mu_DCA_X", "DCA_X", kTH1F, {axisDCAX});
     histos.add("D02mu_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
+    histos.add("D02mu_DCAT", "D02mu_DCAT", kTH1F, {axisDCAT});
+    histos.add("D0_pT", "D0_pT", kTH1F, {axisPt});
+    histos.add("MFT_Kaon_pT", "MFT_Kaon_pT", kTH1F, {axisPt});
     histos.add("KpDecayX", "KpDecayX", kTH1F, {axisX});
     histos.add("KpDecayY", "KpDecayY", kTH1F, {axisY});
     histos.add("KpDecayZ", "KpDecayZ", kTH1F, {axisZ});
     histos.add("Kp2mu_DCA_X", "DCA_X", kTH1F, {axisDCAX});
     histos.add("Kp2mu_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
+    histos.add("Kp2mu_DCAT", "Kp2mu_DCAT", kTH1F, {axisDCAT});
     histos.add("MFTParticleCounter", "MFTParticleCounter", kTH1F, {axisCounter});
     histos.add("MFTMuonCounter", "MFTMuonCounter", kTH1F, {axisCounter});
     histos.add("MFT_muon_pT", "MFT_muon_pT", kTH1F, {axisPt});
+    histos.add("counter1", "counter1", kTH1F, {axisCounter});
+    histos.add("counter2", "counter2", kTH1F, {axisCounter});
 
     auto hmpdgcode = histos.get<TH1>(HIST("muonMomPDG"));
     auto* x1 = hmpdgcode->GetXaxis();
@@ -153,14 +165,35 @@ struct MyAnalysisTask {
                 histos.fill(HIST("muonMomPDG"), 2.0, 1);
                 histos.fill(HIST("pi2mu_DCA_X"), fwdtrack.fwdDcaX());
                 histos.fill(HIST("pi2mu_DCA_Y"), fwdtrack.fwdDcaY());
+                histos.fill(HIST("pi2mu_DCAT"), sqrt(pow(fwdtrack.fwdDcaX(), 2.0)*pow(fwdtrack.fwdDcaY(), 2.0)));
               }
               if(fabs(mcMomPDG)==421){
+                //auto momID = mcMom.globalIndex();
                 histos.fill(HIST("muonMomPDG"), 15.0, 1);
                 histos.fill(HIST("D0DecayX"), mcParticle_fwd.vx());
                 histos.fill(HIST("D0DecayY"), mcParticle_fwd.vy());
                 histos.fill(HIST("D0DecayZ"), mcParticle_fwd.vz());
+                histos.fill(HIST("D0_pT"), mcMom.pt());
+                histos.fill(HIST("Distance_D0_z"), fabs(mcCol_z-mcParticle_fwd.vz()));
+
+                /*int d[10] = {};
+                int gi[10] = {};
+                float eta_k[10] = {};
+                int i = 0;
                 for(auto Daughter : Daughters){
-                  if(fabs(Daughter.pdgCode())==13){
+                  d[i] = Daughter.pdgCode();
+                  gi[i] = Daughter.globalIndex();
+                  eta_k[i] = Daughter.eta();
+                  i++;
+                }
+
+                if(d[0]*d[1]!=4173) continue;
+                if(eta_k[0]>(-2.45) || eta_k[0]<(-3.6)) continue;
+                histos.fill(HIST("counter1"), 0.5);*/
+
+                for(auto Daughter : Daughters){
+                  if(fabs(Daughter.pdgCode())==13){//Daughter.globalIndex()==gi[1]){ //muon
+                    //if(eta_k[0]<(-2.45) && eta_k[0]>(-3.6))
                     auto mu_ID = Daughter.globalIndex();
                     if(mu_ID==a_ID){
                       mudcaX = fwdtrack.fwdDcaX();
@@ -170,8 +203,21 @@ struct MyAnalysisTask {
                       mumftZ = fwdtrack.z();
                       histos.fill(HIST("D02mu_DCA_X"), mudcaX);
                       histos.fill(HIST("D02mu_DCA_Y"), mudcaY);
+                      histos.fill(HIST("D02mu_DCAT"), sqrt(pow(mudcaX, 2.0)*pow(mudcaY, 2.0)));
                     }
                   }
+                  /*if(Daughter.globalIndex()==gi[0]){ //kaon
+                    if(eta_k[0]<(-2.45) && eta_k[0]>(-3.6)){
+                      for(auto& mfttrack : mfttracks){
+                        if(!mfttrack.has_mcParticle()) continue;
+                        auto mcParticle_mft = mfttrack.mcParticle();
+                        if(mcParticle_mft.globalIndex()==Daughter.globalIndex()){
+                          histos.fill(HIST("counter2"), 0.5);
+                          histos.fill(HIST("MFT_Kaon_pT"), mcParticle_mft.pt());
+                        }
+                      }
+                    }
+                  }*/
                 }
               }
               if(fabs(mcMomPDG)==321){
@@ -181,6 +227,7 @@ struct MyAnalysisTask {
                 histos.fill(HIST("KpDecayZ"), mcParticle_fwd.vz());
                 histos.fill(HIST("Kp2mu_DCA_X"), fwdtrack.fwdDcaX());
                 histos.fill(HIST("Kp2mu_DCA_Y"), fwdtrack.fwdDcaY());
+                histos.fill(HIST("Kp2mu_DCAT"), sqrt(pow(fwdtrack.fwdDcaX(), 2.0)*pow(fwdtrack.fwdDcaY(), 2.0)));
               }
             }
           }
