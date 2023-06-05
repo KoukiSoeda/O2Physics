@@ -137,9 +137,9 @@ struct MyAnalysisTask {
         if(fabs(fwdTrackPDG)==13) histos.fill(HIST("FwdMuonCounter"), 0.5);
 
         //Informaion of D0 meson
-        float mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ;//, mudcaX_my, mudcaY_my;
+        float mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ, mudcaX_my, mudcaY_my;
         float mu_phi, mu_eta, k_phi, k_eta;
-        float k_px, k_py, k_vx, k_vy, k_vz, mu_px, mu_py, mu_vx, mu_vy, mu_vz;
+        float k_px, k_py, k_vx, k_vy, k_vz;//, mu_px, mu_py, mu_vx, mu_vy, mu_vz;
         float secver_z;
         if(fwdtrack.trackType()==fwdTrackType){ //|| fwdtrack.trackType()==fwdTrackType2){//Required MFT-MCH-MID (GlobalMuonTrack)
           auto chi2GMT = fwdtrack.chi2MatchMCHMFT();
