@@ -3,16 +3,34 @@
 
 #include <iostream>
 #include <cmath>
-#include "Framework/runDataProcessing.h"
-#include "Framework/AnalysisTask.h"
 #include "Framework/AnalysisDataModel.h"
+#include "Framework/AnalysisTask.h"
+#include "Framework/runDataProcessing.h"
+#include "Common/DataModel/EventSelection.h"
+#include "Common/CCDB/EventSelectionParams.h"
+
 #include "Common/DataModel/TrackSelectionTables.h"
-#include "TDatabasePDG.h"
-#include "MathUtils/Utils.h"
+#include "Common/Core/trackUtilities.h"
+#include "Common/Core/TrackSelection.h"
+#include "Common/DataModel/TrackSelectionTables.h"
+#include "ReconstructionDataFormats/TrackFwd.h"
+#include "Math/SMatrix.h"
+#include "DetectorsBase/Propagator.h"
+#include "MFTTracking/Tracker.h"
+#include "Framework/ASoAHelpers.h"
+#include <math.h>
+#include <TLorentzVector.h>
 
 using namespace std;
 using namespace o2;
 using namespace o2::framework;
+using namespace o2::framework::expressions;
+using namespace o2::soa;
+using namespace evsel;
+using o2::track::TrackParCovFwd;
+using o2::track::TrackParFwd;
+using SMatrix55 = ROOT::Math::SMatrix<double, 5, 5, ROOT::Math::MatRepSym<double, 5>>;
+using SMatrix5 = ROOT::Math::SVector<double, 5>;
 
 struct MyAnalysisTask {
   // Histogram registry: an object to hold your histograms
@@ -29,8 +47,8 @@ struct MyAnalysisTask {
   Configurable<int> nBinsDist{"nBinsDist", 500, ""};
   Configurable<int> fwdTrackType{"fwdTrackType", 0, "N TrackType in fwd"};
   Configurable<int> fwdTrackType2{"fwdTrackType2", 2, "N TrackType in fwd2"};
-  Configurable<int> zaxisMaxCut{"zaxisMaxCut", 100000, "MaxCutForPCA"};
-  Configurable<float> zaxisMinCut{"zaxisMinCut", -1.5, "MinCutForPCA"};
+  Configurable<float> zaxisMaxCut{"zaxisMaxCut", 40, "MaxCutForPCA"};
+  Configurable<float> zaxisMinCut{"zaxisMinCut", -40, "MinCutForPCA"};
 
   void init(InitContext const&)
   {
@@ -137,9 +155,9 @@ struct MyAnalysisTask {
         if(fabs(fwdTrackPDG)==13) histos.fill(HIST("FwdMuonCounter"), 0.5);
 
         //Informaion of D0 meson
-        float mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ, mudcaX_my, mudcaY_my;
+        float mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ;
         float mu_phi, mu_eta, k_phi, k_eta;
-        float k_px, k_py, k_vx, k_vy, k_vz;//, mu_px, mu_py, mu_vx, mu_vy, mu_vz;
+        //float k_px, k_py, k_vx, k_vy, k_vz;//, mu_px, mu_py, mu_vx, mu_vy, mu_vz;
         float secver_z;
         if(fwdtrack.trackType()==fwdTrackType){ //|| fwdtrack.trackType()==fwdTrackType2){//Required MFT-MCH-MID (GlobalMuonTrack)
           auto chi2GMT = fwdtrack.chi2MatchMCHMFT();
@@ -196,18 +214,21 @@ struct MyAnalysisTask {
                   if(fabs(Daughter.pdgCode())==13){//muon
                     auto mu_ID = Daughter.globalIndex();
                     if(mu_ID==a_ID){
-                      mudcaX = fwdtrack.fwdDcaX();
-                      mudcaY = fwdtrack.fwdDcaY();
+                      Double_t verZ = collision.posZ();
+                      double mftchi2 = fwdtrack.chi2();
+                      SMatrix5 mftpars(fwdtrack.x(), fwdtrack.y(), fwdtrack.phi(), fwdtrack.tgl(), fwdtrack.signed1Pt());
+                      vector<double> mftv1;
+                      SMatrix55 mftcovs(mftv1.begin(), mftv1.end());
+                      o2::track::TrackParCovFwd mftpars1{fwdtrack.z(), mftpars, mftcovs, mftchi2};
+                      mftpars1.propagateToZlinear(verZ);
+                      mudcaX = mftpars1.getX();
+                      mudcaY = mftpars1.getY();
                       mumftX = fwdtrack.x();
                       mumftY = fwdtrack.y();
                       mumftZ = fwdtrack.z();
                       mu_phi = fwdtrack.phi();
                       mu_eta = fwdtrack.eta();
                       secver_z = Daughter.vz();
-                      auto mftXYZ = sqrt(pow(mumftX,2)+pow(mumftY,2)+pow(mumftZ,2));
-                      auto theta = 2*atan(exp(-mu_eta));
-                      mudcaX_my = mumftX - mftXYZ*tan(theta)*cos(mu_phi);
-                      mudcaY_my = mumftY - mftXYZ*tan(theta)*sin(mu_phi);
                       histos.fill(HIST("D02mu_eta"), Daughter.eta());
                       histos.fill(HIST("D02mu_phi"), Daughter.phi());
                       histos.fill(HIST("D02mu_DCA_X"), mudcaX);
@@ -219,16 +240,27 @@ struct MyAnalysisTask {
                   if(fabs(Daughter.pdgCode())==321){//kaon
                     auto k_ID = Daughter.globalIndex();
                     for(auto& mfttrack : mfttracks){
+                      if(!mfttrack.has_collision()) continue;
                       if(!mfttrack.has_mcParticle()) continue;
                       auto mcParticle_mft = mfttrack.mcParticle();
                       auto mftID = mcParticle_mft.globalIndex();
                       if(mftID==k_ID){
+                        Double_t verZ = collision.posZ();
+                        double mftchi2 = mfttrack.chi2();
+                        SMatrix5 mftpars(mfttrack.x(), mfttrack.y(), mfttrack.phi(), mfttrack.tgl(), mfttrack.signed1Pt());
+                        vector<double> mftv1;
+                        SMatrix55 mftcovs(mftv1.begin(), mftv1.end());
+                        o2::track::TrackParCovFwd mftpars1{mfttrack.z(), mftpars, mftcovs, mftchi2};
+                        mftpars1.propagateToZlinear(verZ);
+                        
                         k_phi = mfttrack.phi();
                         k_eta = mfttrack.eta();
                         kmftX = mfttrack.x();
                         kmftY = mfttrack.y();
                         kmftZ = mfttrack.z();
-                        k_px = mfttrack.px();
+                        kdcaX = mftpars1.getX();
+                        kdcaY = mftpars1.getY();
+                        /*k_px = mfttrack.px();
                         k_py = mfttrack.py();
                         k_vx = mcParticle_mft.vx();
                         k_vy = mcParticle_mft.vy();
@@ -236,7 +268,7 @@ struct MyAnalysisTask {
                         auto mftXYZ = sqrt(pow(kmftX,2)+pow(kmftY,2)+pow(kmftZ,2));
                         auto theta = 2*atan(exp(-k_eta));
                         kdcaX = kmftX - mftXYZ*tan(theta)*cos(k_phi);
-                        kdcaY = kmftY - mftXYZ*tan(theta)*sin(k_phi);
+                        kdcaY = kmftY - mftXYZ*tan(theta)*sin(k_phi);*/
                         daughter_count++;
                       }
                     }
@@ -252,27 +284,24 @@ struct MyAnalysisTask {
                   auto d = kmftX - kdcaX;
                   auto e = kmftY - kdcaY;
                   auto f = kmftZ - collision.posZ();
-                  cout << k_vx << ", " << k_vy << ", " << k_vz << endl;
-                  cout << mumftX << "," << mumftY << "," << mumftZ << "," << mudcaX << "," << mudcaY << "," << collision.posZ() << "," << mudcaX_my << ", " << mudcaY_my << endl;
-                  cout << kmftX << "," << kmftY << "," << kmftZ << "," << kdcaX << "," << kdcaY << "," << collision.posZ() << endl;                  
-                  auto top = sqrt(pow((b*f-e*c)*(mumftX-kmftX),2)+pow((d*c-a*f)*(mumftY-kmftY),2)+pow((a*e-e*d)*(mumftZ-kmftZ),2));
-                  auto bottom = sqrt(pow(b*f-e*c,2)+pow(d*c-a*f,2)+pow(a*e-b*d,2));
-                  if(bottom==0) continue;
-                  auto h = top/bottom;
+                  //auto top = sqrt(pow((b*f-e*c)*(mumftX-kmftX),2)+pow((d*c-a*f)*(mumftY-kmftY),2)+pow((a*e-e*d)*(mumftZ-kmftZ),2));
+                  //auto bottom = sqrt(pow(b*f-e*c,2)+pow(d*c-a*f,2)+pow(a*e-b*d,2));
+                  //if(bottom==0) continue;
+                  //auto h = top/bottom;
                   histos.fill(HIST("D0Decay_muK"), secver_z);
-                  for(auto t0=0; t0<=zaxisMaxCut; t0++){
-                    auto t = zaxisMinCut + 0.00001*t0;
+                  for(auto t0=0; t0<=200000; t0++){
+                    auto t = -0.00001*t0;
                     auto r1x = mumftX + t*a;
                     auto r1y = mumftY + t*b;
                     auto r1z = mumftZ + t*c;
                     auto r2x = kmftX + t*d;
                     auto r2y = kmftY + t*e;
                     auto r2z = kmftZ + t*f;
-                    //cout << r1z << endl;
+                    if(r1z<zaxisMinCut || r1z>zaxisMaxCut) continue;
                     auto dist = sqrt(pow(r1x-r2x,2)+pow(r1y-r2y,2)+pow(r1z-r2z,2));
                     //if(g==0) cout << dist << endl;
-                    if(predist>=fabs(h-dist)){
-                      predist = fabs(h-dist);
+                    if(predist>=dist){
+                      predist = dist;
                       preZ = r1z;
                     }
                   }
