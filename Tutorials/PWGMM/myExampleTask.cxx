@@ -39,7 +39,7 @@ struct MyAnalysisTask {
   Configurable<int> nBinsVer{"nBinsVer", 300, "N bins in Collisino Vertex histo"};
   Configurable<int> nBinsPt{"nBinsPt", 100, "N bins in pT histo"};
   Configurable<int> nBinsEta{"nBinsEta", 100, ""};
-  Configurable<int> nBinsPhi{"nBinsPhi", 7000, ""};
+  Configurable<int> nBinsPhi{"nBinsPhi", 3000, ""};
   Configurable<int> nBinsXY{"nBinsXY", 10000, "N bins in X and Y axis"};
   Configurable<int> nBinsZ{"nBinsZ", 5000, "N bins in Z axis"};
   Configurable<int> nBinsDCA{"nBinsDCA", 5000, "N bins in DCA"};
@@ -92,6 +92,8 @@ struct MyAnalysisTask {
     histos.add("D0_pT", "D0_pT", kTH1F, {axisPt});
     histos.add("D02mu_eta", "D02mu_eta", kTH1F, {axisEta});
     histos.add("D02mu_phi", "D02mu_phi", kTH1F, {axisPhi});
+    histos.add("D02Kp_DCA_X", "DCA_X", kTH1F, {axisDCAX});
+    histos.add("D02Kp_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
     histos.add("MFT_Kaon_pT", "MFT_Kaon_pT", kTH1F, {axisPt});
     histos.add("KpDecayX", "KpDecayX", kTH1F, {axisX});
     histos.add("KpDecayY", "KpDecayY", kTH1F, {axisY});
@@ -99,8 +101,11 @@ struct MyAnalysisTask {
     histos.add("Kp2mu_DCA_X", "DCA_X", kTH1F, {axisDCAX});
     histos.add("Kp2mu_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
     histos.add("Kp2mu_DCAT", "Kp2mu_DCAT", kTH1F, {axisDCAT});
-    histos.add("D0Decay_muK", "D0Decay_muK", kTH1F, {axisZ});
     histos.add("PredictZ", "PredictZ", kTH1F, {axisZ});
+    histos.add("D0Decay_muK", "D0Decay_muK", kTH1F, {axisZ});
+    histos.add("PredictZ_muK", "PredictZ_muK", kTH1F, {axisZ});
+    histos.add("Diff_preZ_muK", "Diff_preZ_muK", kTH1F, {{1500, -0.075, 0.075, "z(cm)"}});
+    histos.add("PCAZ_muK", "PCAZ_muK", kTH1F, {axisZ});
     histos.add("MFTParticleCounter", "MFTParticleCounter", kTH1F, {axisCounter});
     histos.add("MFTMuonCounter", "MFTMuonCounter", kTH1F, {axisCounter});
     histos.add("MFT_muon_pT", "MFT_muon_pT", kTH1F, {axisPt});
@@ -146,6 +151,7 @@ struct MyAnalysisTask {
       //Information of FwdTracks
       for(auto& fwdtrack : fwdtracks){
         histos.fill(HIST("TrackType"), fwdtrack.trackType());
+        auto fwdID = fwdtrack.globalIndex();
 
         if(!fwdtrack.has_mcParticle()) continue;
         auto mcParticle_fwd = fwdtrack.mcParticle();
@@ -210,6 +216,7 @@ struct MyAnalysisTask {
                 histos.fill(HIST("Distance_D0_z"), fabs(mcCol_z-mcParticle_fwd.vz()));
 
                 int daughter_count = 0;
+                auto pcaCan = 1000;
                 for(auto Daughter : Daughters){
                   if(fabs(Daughter.pdgCode())==13){//muon
                     auto mu_ID = Daughter.globalIndex();
@@ -236,6 +243,49 @@ struct MyAnalysisTask {
                       histos.fill(HIST("D02mu_DCAT"), sqrt(pow(mudcaX, 2.0)*pow(mudcaY, 2.0)));
                       daughter_count++;
                     }
+                    //Scan all mfttrack for calculate the PCA
+                    for(auto& mfttrack : mfttracks){
+                      if(!mfttrack.has_collision()) continue;
+                      if(!mfttrack.has_mcParticle()) continue;
+                      if(mfttrack.globalIndex()==fwdID) continue;
+                      //auto mcParticle_mft = mfttrack.mcParticle();
+                      //auto mftID = mcParticle_mft.globalIndex();
+                      Double_t verZ = collision.posZ();
+                      double mftchi2 = mfttrack.chi2();
+                      SMatrix5 mftpars(mfttrack.x(), mfttrack.y(), mfttrack.phi(), mfttrack.tgl(), mfttrack.signed1Pt());
+                      vector<double> mftv1;
+                      SMatrix55 mftcovs(mftv1.begin(), mftv1.end());
+                      o2::track::TrackParCovFwd mftpars1{mfttrack.z(), mftpars, mftcovs, mftchi2};
+                      mftpars1.propagateToZlinear(verZ);
+
+                      auto mftX = mfttrack.x();
+                      auto mftY = mfttrack.y();
+                      auto mftZ = mfttrack.z();
+                      auto dcaX = mftpars1.getX();
+                      auto dcaY = mftpars1.getY();
+
+                      auto Nax = mudcaX - mumftX;
+                      auto Nay = mudcaY - mumftY;
+                      auto Naz = collision.posZ() - mumftZ;
+                      auto Ncx = dcaX - mftX;
+                      auto Ncy = dcaY - mftY;
+                      auto Ncz = collision.posZ() - mftZ;
+                      auto A1 = Nax*Nax + Nay*Nay + Naz*Naz;
+                      auto A2 = -(Nax*Ncx + Nay*Ncy + Naz*Ncz);
+                      auto A3 = (mumftX-mftX)*Nax + (mumftY-mftY)*Nay + (mumftZ-mftZ)*Naz;
+                      auto B1 = A2;
+                      auto B2 = Ncx*Ncx + Ncy*Ncy + Ncz*Ncz;
+                      auto B3 = (mftX-mumftX)*Ncx + (mftY-mumftY)*Ncy + (mftZ-mumftZ)*Ncz;
+                      auto t = (A1*B3-A3*B1)/(A2*B1-A1*B2);
+                      auto s = -((A2*t+A3)/A1);
+                      auto pre_muz = mumftZ + s*Naz;
+                      //auto pre_kz = mftZ + t*Ncz;
+                      if(pre_muz<zaxisMinCut || pre_muz>zaxisMaxCut) continue;
+                      if(pcaCan>=pre_muz){
+                        pcaCan = pre_muz;
+                      }
+                    }
+
                   }
                   if(fabs(Daughter.pdgCode())==321){//kaon
                     auto k_ID = Daughter.globalIndex();
@@ -260,6 +310,8 @@ struct MyAnalysisTask {
                         kmftZ = mfttrack.z();
                         kdcaX = mftpars1.getX();
                         kdcaY = mftpars1.getY();
+                        histos.fill(HIST("D02Kp_DCA_X"), kdcaX);
+                        histos.fill(HIST("D02Kp_DCA_Y"), kdcaY);
                         /*k_px = mfttrack.px();
                         k_py = mfttrack.py();
                         k_vx = mcParticle_mft.vx();
@@ -276,20 +328,20 @@ struct MyAnalysisTask {
                 }
                 if(daughter_count==2){
                   histos.fill(HIST("counter1"), 0.5);
-                  float predist = 100.0;
+                  /*float predist = 100.0;
                   float preZ;
                   auto a = mumftX - mudcaX;
                   auto b = mumftY - mudcaY;
                   auto c = mumftZ - collision.posZ();
                   auto d = kmftX - kdcaX;
                   auto e = kmftY - kdcaY;
-                  auto f = kmftZ - collision.posZ();
+                  auto f = kmftZ - collision.posZ();*/
                   //auto top = sqrt(pow((b*f-e*c)*(mumftX-kmftX),2)+pow((d*c-a*f)*(mumftY-kmftY),2)+pow((a*e-e*d)*(mumftZ-kmftZ),2));
                   //auto bottom = sqrt(pow(b*f-e*c,2)+pow(d*c-a*f,2)+pow(a*e-b*d,2));
                   //if(bottom==0) continue;
                   //auto h = top/bottom;
                   histos.fill(HIST("D0Decay_muK"), secver_z);
-                  for(auto t0=0; t0<=200000; t0++){
+                 /*for(auto t0=0; t0<=200000; t0++){
                     auto t = -0.00001*t0;
                     auto r1x = mumftX + t*a;
                     auto r1y = mumftY + t*b;
@@ -304,9 +356,28 @@ struct MyAnalysisTask {
                       predist = dist;
                       preZ = r1z;
                     }
-                  }
+                  }*/
+                  auto Nax = mudcaX - mumftX;
+                  auto Nay = mudcaY - mumftY;
+                  auto Naz = collision.posZ() - mumftZ;
+                  auto Ncx = kdcaX - kmftX;
+                  auto Ncy = kdcaY - kmftY;
+                  auto Ncz = collision.posZ() - kmftZ;
+                  auto A1 = Nax*Nax + Nay*Nay + Naz*Naz;
+                  auto A2 = -(Nax*Ncx + Nay*Ncy + Naz*Ncz);
+                  auto A3 = (mumftX-kmftX)*Nax + (mumftY-kmftY)*Nay + (mumftZ-kmftZ)*Naz;
+                  auto B1 = A2;
+                  auto B2 = Ncx*Ncx + Ncy*Ncy + Ncz*Ncz;
+                  auto B3 = (kmftX-mumftX)*Ncx + (kmftY-mumftY)*Ncy + (kmftZ-mumftZ)*Ncz;
+                  auto t = (A1*B3-A3*B1)/(A2*B1-A1*B2);
+                  auto s = -((A2*t+A3)/A1);
+                  auto pre_muz = mumftZ + s*Naz;
+                  auto pre_kz = kmftZ + t*Ncz;
                   g++;
-                  histos.fill(HIST("PredictZ"), preZ-secver_z);
+                  histos.fill(HIST("PredictZ_muK"), pre_muz);
+                  histos.fill(HIST("Diff_preZ_muK"), pre_muz-pre_kz);
+                  histos.fill(HIST("PCAZ_muK"), (pre_muz+pre_kz)/2);
+                  histos.fill(HIST("PredictZ"), pcaCan);
                 }
               }
               if(fabs(mcMomPDG)==321){
