@@ -58,6 +58,7 @@ struct MyAnalysisTask {
 		const AxisSpec axisCounter{1, 0, +1, ""};
 		const AxisSpec axisChi2(505, -4.5, +500.5, "");
 		const AxisSpec axisPDG(19, -0.5, +18.5, "");
+		const AxisSpec axisPDGv2(1001, -0.5, +1000.5, "");
 		const AxisSpec axisX(nBinsXY, -10, 10, "x(cm)");
 		const AxisSpec axisY(nBinsXY, -10, 10, "y(cm)");
 		const AxisSpec axisZ(nBinsZ, -50, 50, "z(cm)");
@@ -90,6 +91,8 @@ struct MyAnalysisTask {
 		histos.add("D02Kp_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
 		histos.add("MFT_Kaon_pT", "MFT_Kaon_pT", kTH1F, {axisPt});
 		histos.add("PredictZ", "PredictZ", kTH1F, {axisZ});
+		histos.add("predictPDG", "predictPDG", kTH1F, {axisPDGv2});
+		//histos.add("PredictZandPDG", "PredictZandPDG", kTH2F, {axisZ, axisPDGv2});
 		histos.add("D0Decay_muK", "D0Decay_muK", kTH1F, {axisZ});
 		histos.add("PredictZ_muK", "PredictZ_muK", kTH1F, {axisZ});
 		histos.add("Diff_preZ_muK", "Diff_preZ_muK", kTH1F, {{1500, -0.075, 0.075, "z(cm)"}});
@@ -121,6 +124,29 @@ struct MyAnalysisTask {
 		x1->SetBinLabel(17, "D_s±"); // 431
 		x1->SetBinLabel(18, "Beauty"); // 500-599
 		x1->SetBinLabel(19, "Baryon"); // 1000 -
+/*
+		auto pdgcode = histos.get<TH1>(HIST("predictPDG"));
+		auto* x2 = pdgcode->GetXaxis();
+		x2->SetBinLabel(1, "Primary"); // 1 - 37
+		x2->SetBinLabel(2, "Pion0"); // 111
+		x2->SetBinLabel(3, "Pion±"); // 211
+		x2->SetBinLabel(4, "pho"); // 113
+		x2->SetBinLabel(5, "K_l"); // 130
+		x2->SetBinLabel(6, "Eta"); // 221
+		x2->SetBinLabel(7, "Omega"); // 223
+		x2->SetBinLabel(8, "K_s"); // 310
+		x2->SetBinLabel(9, "K*0(892)"); // 313
+		x2->SetBinLabel(10, "K±"); // 321
+		x2->SetBinLabel(11, "K*±(892)"); // 323
+		x2->SetBinLabel(12, "Eta_prim"); // 331
+		x2->SetBinLabel(13, "Phi"); // 333
+		x2->SetBinLabel(14, "D±"); // 411
+		x2->SetBinLabel(15, "D*±"); // 413
+		x2->SetBinLabel(16, "D0"); // 421
+		x2->SetBinLabel(17, "D_s±"); // 431
+		x2->SetBinLabel(18, "Beauty"); // 500-599
+		x2->SetBinLabel(19, "Baryon"); // 1000 -*/
+
 	}
 
 	void process(soa::Join<aod::Collisions, aod::McCollisionLabels>::iterator const& collision,
@@ -184,7 +210,7 @@ struct MyAnalysisTask {
 							
 
 							if(fabs(mcMomPDG)==211){
-									histos.fill(HIST("muonMomPDG"), 2.0, 1);
+								histos.fill(HIST("muonMomPDG"), 2.0, 1);
 							}
 
 							if(fabs(mcMomPDG)==421){
@@ -198,6 +224,7 @@ struct MyAnalysisTask {
 
 								int daughter_count = 0;
 								auto pcaCan = 1000;
+								int idPDG;
 								for(auto Daughter : Daughters){
 									if(fabs(Daughter.pdgCode())==13){//muon
 										auto mu_ID = Daughter.globalIndex();
@@ -229,7 +256,7 @@ struct MyAnalysisTask {
 											if(!mfttrack.has_collision()) continue;
 											if(!mfttrack.has_mcParticle()) continue;
 											if(mfttrack.globalIndex()==fwdID) continue;
-											//auto mcParticle_mft = mfttrack.mcParticle();
+											auto mcParticle_mft = mfttrack.mcParticle();
 											//auto mftID = mcParticle_mft.globalIndex();
 											Double_t verZ = collision.posZ();
 											double mftchi2 = mfttrack.chi2();
@@ -264,6 +291,7 @@ struct MyAnalysisTask {
 											if(pre_muz<zaxisMinCut || pre_muz>zaxisMaxCut) continue;
 											if(pcaCan>=pre_muz){
 													pcaCan = pre_muz;
+													idPDG = mcParticle_mft.pdgCode();
 											}
 										}
 									}
@@ -321,6 +349,24 @@ struct MyAnalysisTask {
 									histos.fill(HIST("Diff_preZ_muK"), pre_muz-pre_kz);
 									histos.fill(HIST("PCAZ_muK"), (pre_muz+pre_kz)/2);
 									histos.fill(HIST("PredictZ"), pcaCan);
+									histos.fill(HIST("predictPDG"), fabs(idPDG));
+									/*
+									if(fabs(idPDG) < 38) histos.fill(HIST("predictPDG"), 0.0, 1);
+									if(fabs(idPDG) == 111) histos.fill(HIST("predictPDG"), 1.0, 1);
+									if(fabs(idPDG) == 113 ) histos.fill(HIST("predictPDG"), 3.0, 1);
+									if(fabs(idPDG) == 130 ) histos.fill(HIST("predictPDG"), 4.0, 1);
+									if(fabs(idPDG) == 221 ) histos.fill(HIST("predictPDG"), 5.0, 1);
+									if(fabs(idPDG) == 223 ) histos.fill(HIST("predictPDG"), 6.0, 1);
+									if(fabs(idPDG) == 310 ) histos.fill(HIST("predictPDG"), 7.0, 1);
+									if(fabs(idPDG) == 313 ) histos.fill(HIST("predictPDG"), 8.0, 1);
+									if(fabs(idPDG) == 321 ) histos.fill(HIST("predictPDG"), 9.0, 1);
+									if(fabs(idPDG) == 323 ) histos.fill(HIST("predictPDG"), 10.0, 1);
+									if(fabs(idPDG) == 333 ) histos.fill(HIST("predictPDG"), 12.0, 1);
+									if(fabs(idPDG) == 411 ) histos.fill(HIST("predictPDG"), 13.0, 1);
+									if(fabs(idPDG) == 413 ) histos.fill(HIST("predictPDG"), 14.0, 1);
+									if(fabs(idPDG) == 431 ) histos.fill(HIST("predictPDG"), 16.0, 1);
+									if(fabs(idPDG) > 499 && fabs(idPDG) < 600) histos.fill(HIST("predictPDG"), 17.0, 1);
+									if(fabs(idPDG) > 999 ) histos.fill(HIST("predictPDG"), 18.0, 1);*/
 								}
 							}
 							if(fabs(mcMomPDG)==321){
