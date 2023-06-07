@@ -306,7 +306,7 @@ struct MyAnalysisTask {
                     }
                   }
                   g++;
-                  histos.fill(HIST("PredictZ"), preZ);
+                  histos.fill(HIST("PredictZ"), preZ-secver_z);
                 }
               }
               if(fabs(mcMomPDG)==321){
