@@ -12,5 +12,6 @@
 # Basic analysis tutorial
 o2physics_add_dpl_workflow(my-example-task
                   SOURCES myExampleTask.cxx
-                  PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+                  PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
+                                        O2::ReconstructionDataFormats
                   COMPONENT_NAME AnalysisTutorial)
