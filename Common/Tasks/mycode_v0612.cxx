@@ -147,7 +147,7 @@ struct MyAnalysisTask {
 							soa::Join<aod::MFTTracks, aod::McMFTTrackLabels> const& mfttracks,
 							aod::McParticles const& MCparticle,
 							aod::McCollisions const&)
-	{ 
+	{
 		if(collision.has_mcCollision()){
 			//Informatin of MC collision
 			auto mcCol_z = collision.mcCollision().posZ();
@@ -156,11 +156,11 @@ struct MyAnalysisTask {
 			//Information of FwdTracks
 			for(auto& fwdtrack : fwdtracks){
 				histos.fill(HIST("TrackType"), fwdtrack.trackType());
-				auto fwdID = fwdtrack.globalIndex();
 
 				if(!fwdtrack.has_mcParticle()) continue;
 				auto mcParticle_fwd = fwdtrack.mcParticle();
 				auto fwdTrackPDG = mcParticle_fwd.pdgCode();
+        auto fwdID = mcParticle_fwd.globalIndex();
 
 				//Informaion of D0 meson
 				float mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ;
@@ -177,7 +177,6 @@ struct MyAnalysisTask {
 						  //auto mcMom = MCparticle.rawIteratorAt(mcParticle_fwd.mothersIds()[]);
               auto mcMoms = mcParticle_fwd.mothers_as<aod::McParticles>();
               auto mcMom = mcMoms[0];
-              if(mcMoms.size()>1) cout << "Has many mothers!!" << endl; 
 							auto mcMomPDG = mcMom.pdgCode();
 							auto Daughters = mcMom.daughters_as<aod::McParticles>();
 
@@ -189,6 +188,7 @@ struct MyAnalysisTask {
                   float pcaZ, pcaX, pcaY, mftpT;
                   int idPDG, k_mom, mu_mom;
                   int64_t mftID;
+                  
                   for(auto Daughter : Daughters){
                     if(fabs(Daughter.pdgCode())==13){//muon
                       auto mu_ID = Daughter.globalIndex();
@@ -255,7 +255,10 @@ struct MyAnalysisTask {
                     int64_t predictID;
                     for(auto& mfttrack : mfttracks){
                       if(!mfttrack.has_collision() || !mfttrack.has_mcParticle()) continue;
-                      if(mfttrack.globalIndex()==fwdID) continue;
+                      auto MCmft = mfttrack.mcParticle();
+
+                      if(MCmft.globalIndex()==fwdID) LOGF(info, "MFT ID: %d, FWD ID: %d", MCmft.globalIndex(), fwdID);
+                      if(MCmft.globalIndex()==fwdID) continue;
                       
                       auto mcParticle_mft = mfttrack.mcParticle();
                       Double_t verZ = collision.posZ();
