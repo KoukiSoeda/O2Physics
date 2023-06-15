@@ -155,6 +155,7 @@ struct MyAnalysisTask {
 
 			//Information of FwdTracks
 			for(auto& fwdtrack : fwdtracks){
+        if(collision.posZ()>10 && collision.posZ()<-10) continue;
 				histos.fill(HIST("TrackType"), fwdtrack.trackType());
 
 				if(!fwdtrack.has_mcParticle()) continue;
@@ -174,11 +175,12 @@ struct MyAnalysisTask {
 						auto a_ID = mcParticle_fwd.globalIndex();
 
 						if(mcParticle_fwd.has_mothers()){
-						  //auto mcMom = MCparticle.rawIteratorAt(mcParticle_fwd.mothersIds()[]);
               auto mcMoms = mcParticle_fwd.mothers_as<aod::McParticles>();
-              auto mcMom = mcMoms[0];
+              auto mcMom = mcMoms.back();
 							auto mcMomPDG = mcMom.pdgCode();
 							auto Daughters = mcMom.daughters_as<aod::McParticles>();
+
+              //LOGF(info, "Last Mother Particle: %d", mcMoms.back().pdgCode());
 
 							if(fabs(mcMomPDG)==421){
 								//auto momID = mcMom.globalIndex();
@@ -207,10 +209,10 @@ struct MyAnalysisTask {
                         mumftZ = fwdtrack.z();
                         mu_phi = fwdtrack.phi();
                         mu_eta = fwdtrack.eta();
-                        secver_z = Daughter.vz() - collision.posZ();
+                        secver_z = Daughter.vz() - mcMom.vz();
                         histos.fill(HIST("D02mu_DCA_X"), mudcaX);
                         histos.fill(HIST("D02mu_DCA_Y"), mudcaY);
-                        histos.fill(HIST("D02mu_DCAT"), sqrt(pow(mudcaX, 2.0)*pow(mudcaY, 2.0)));
+                        histos.fill(HIST("D02mu_DCAT"), sqrt(pow(mudcaX, 2.0)*pow(mudcaY, 2.0)));   
                         histos.fill(HIST("Distance_D0_z"), fabs(secver_z));
                         mu_mom = MCparticle.rawIteratorAt(Daughter.mothersIds()[0]).globalIndex();
                         daughter_count++;
@@ -257,7 +259,7 @@ struct MyAnalysisTask {
                       if(!mfttrack.has_collision() || !mfttrack.has_mcParticle()) continue;
                       auto MCmft = mfttrack.mcParticle();
 
-                      if(MCmft.globalIndex()==fwdID) LOGF(info, "MFT ID: %d, FWD ID: %d", MCmft.globalIndex(), fwdID);
+                      //if(MCmft.globalIndex()==fwdID) LOGF(info, "MFT ID: %d, FWD ID: %d", MCmft.globalIndex(), fwdID);
                       if(MCmft.globalIndex()==fwdID) continue;
                       
                       auto mcParticle_mft = mfttrack.mcParticle();
