@@ -57,7 +57,7 @@ struct MyAnalysisTask {
 		const AxisSpec axisVertex{nBinsVer, -30, +30, "cm"};
 		const AxisSpec axistrackType{6, -0.5, 5.5, "TrackType"};
 		const AxisSpec axisCounter{1, 0, +1, ""};
-		const AxisSpec axisChi2(505, -4.5, +500.5, "");
+		const AxisSpec axisChi2(1005, -4.5, +1000.5, "");
 		const AxisSpec axisPDG(19, -0.5, +18.5, "");
 		const AxisSpec axisPDGv2(1001, -0.5, +1000.5, "");
 		const AxisSpec axisX(nBinsXY, -10, 10, "x(cm)");
@@ -77,22 +77,21 @@ struct MyAnalysisTask {
 		histos.add("mcCollisionPos", "CollisionPos", kTH1F, {axisVertex});
 		histos.add("TrackType", "TrackType", kTH1F, {axistrackType});
 		histos.add("muonMomPDG", "muonMomPDG", kTH1F, {axisPDG});
-		histos.add("Distance_D0_z", "Distance_D0_z", kTH1F, {axisDist});
 		histos.add("D02mu_DCA_X", "DCA_X", kTH1F, {axisDCAX});
 		histos.add("D02mu_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
 		histos.add("D02mu_DCAT", "D02mu_DCAT", kTH1F, {axisDCAT});
+    histos.add("Distance_D0_z", "Distance_D0_z", kTH1F, {axisDist});
+    histos.add("D0Decay_muK", "D0Decay_muK", kTH1F, {axisZ});
+    histos.add("chi2MCHMFT", "chi2MCHMFT", kTH1F, {axisChi2});
 		histos.add("D02Kp_DCA_X", "DCA_X", kTH1F, {axisDCAX});
 		histos.add("D02Kp_DCA_Y", "DCA_Y", kTH1F, {axisDCAY});
-		histos.add("MFT_Kaon_pT", "MFT_Kaon_pT", kTH1F, {axisPt});
-		histos.add("MFT_bg_pT", "MFT_bg_pT", kTH1F, {axisPt});
 		histos.add("PredictZ", "PredictZ", kTH1F, {axisZ});
 		histos.add("PredictZ_bg", "PredictZ_bg", kTH1F, {axisZ});
-		histos.add("PredictX", "PredictX", kTH1F, {axisZ});
-		histos.add("PredictX_bg", "PredictX_bg", kTH1F, {axisZ});
-		histos.add("PredictY", "PredictY", kTH1F, {axisZ});
-		histos.add("PredictY_bg", "PredictY_bg", kTH1F, {axisZ});
+		//histos.add("PredictX", "PredictX", kTH1F, {axisZ});
+		//histos.add("PredictX_bg", "PredictX_bg", kTH1F, {axisZ});
+		//histos.add("PredictY", "PredictY", kTH1F, {axisZ});
+		//histos.add("PredictY_bg", "PredictY_bg", kTH1F, {axisZ});
 		histos.add("predictPDG", "predictPDG", kTH1F, {axisPDG});
-		histos.add("D0Decay_muK", "D0Decay_muK", kTH1F, {axisZ});
 		histos.add("counter1", "counter1", kTH1F, {axisCounter});
 		histos.add("counter2", "counter2", kTH1F, {axisCounter});
 
@@ -166,7 +165,6 @@ struct MyAnalysisTask {
 				//Informaion of D0 meson
 				float mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ;
 				float mu_phi, mu_eta, k_phi, k_eta;
-				float secver_z;
 				if(fwdtrack.trackType()==fwdTrackType){
 					auto chi2GMT = fwdtrack.chi2MatchMCHMFT();
 
@@ -176,25 +174,25 @@ struct MyAnalysisTask {
 
 						if(mcParticle_fwd.has_mothers()){
               auto mcMoms = mcParticle_fwd.mothers_as<aod::McParticles>();
-              auto mcMom = mcMoms.back();
+              auto mcMom = mcMoms.back(); //The last mother of global muon track
 							auto mcMomPDG = mcMom.pdgCode();
 							auto Daughters = mcMom.daughters_as<aod::McParticles>();
-
-              //LOGF(info, "Last Mother Particle: %d", mcMoms.back().pdgCode());
+              auto fwdcollID = fwdtrack.collisionId();
 
 							if(fabs(mcMomPDG)==421){
-								//auto momID = mcMom.globalIndex();
-                if(mcMom.producedByGenerator()==true){
-                  int daughter_count = 0;
-                  float pcaCan = 1000;
-                  float pcaZ, pcaX, pcaY, mftpT;
-                  int idPDG, k_mom, mu_mom;
+                if(mcMom.producedByGenerator()==true){ //Selected the particle produced by the generator
+                  float pcaZ, pcaX, pcaY;
+                  int preidPDG, idPDG, k_mom, mu_mom;
                   int64_t mftID;
+                  int daughter_count = 0;
+                  float secver_z;
+                  float predictdist = 1000;
+                  float predictX, predictY, predictZ;
                   
                   for(auto Daughter : Daughters){
                     if(fabs(Daughter.pdgCode())==13){//muon
                       auto mu_ID = Daughter.globalIndex();
-                      if(mu_ID==a_ID){
+                      if(mu_ID==a_ID){ //Check the index
                         Double_t verZ = collision.posZ();
                         double mftchi2 = fwdtrack.chi2();
                         SMatrix5 mftpars(fwdtrack.x(), fwdtrack.y(), fwdtrack.phi(), fwdtrack.tgl(), fwdtrack.signed1Pt());
@@ -202,6 +200,7 @@ struct MyAnalysisTask {
                         SMatrix55 mftcovs(mftv1.begin(), mftv1.end());
                         o2::track::TrackParCovFwd mftpars1{fwdtrack.z(), mftpars, mftcovs, mftchi2};
                         mftpars1.propagateToZlinear(verZ);
+
                         mudcaX = mftpars1.getX() - collision.posX();
                         mudcaY = mftpars1.getY() - collision.posY();
                         mumftX = fwdtrack.x();
@@ -209,20 +208,20 @@ struct MyAnalysisTask {
                         mumftZ = fwdtrack.z();
                         mu_phi = fwdtrack.phi();
                         mu_eta = fwdtrack.eta();
-                        secver_z = Daughter.vz() - mcMom.vz();
+                        secver_z = Daughter.vz() - collision.posZ();
+
                         histos.fill(HIST("D02mu_DCA_X"), mudcaX);
                         histos.fill(HIST("D02mu_DCA_Y"), mudcaY);
                         histos.fill(HIST("D02mu_DCAT"), sqrt(pow(mudcaX, 2.0)*pow(mudcaY, 2.0)));   
-                        histos.fill(HIST("Distance_D0_z"), fabs(secver_z));
-                        mu_mom = MCparticle.rawIteratorAt(Daughter.mothersIds()[0]).globalIndex();
+                        histos.fill(HIST("Distance_D0_z"), fabs(Daughter.vz()-mcMom.vz()));
+                        mu_mom = Daughter.mothers_as<aod::McParticles>().back().globalIndex();
                         daughter_count++;
                       }
                     }
                     if(fabs(Daughter.pdgCode())==321){//kaon
                       auto k_ID = Daughter.globalIndex();
                       for(auto& mfttrack : mfttracks){
-                        if(!mfttrack.has_collision()) continue;
-                        if(!mfttrack.has_mcParticle()) continue;
+                        if(!mfttrack.has_collision() && !mfttrack.has_mcParticle()) continue;
                         auto mcParticle_mft = mfttrack.mcParticle();
                         mftID = mcParticle_mft.globalIndex();
                         if(mftID==k_ID){
@@ -243,26 +242,25 @@ struct MyAnalysisTask {
                           kdcaY = mftpars1.getY() - collision.posY();
                           histos.fill(HIST("D02Kp_DCA_X"), kdcaX);
                           histos.fill(HIST("D02Kp_DCA_Y"), kdcaY);
-                          k_mom = MCparticle.rawIteratorAt(Daughter.mothersIds()[0]).globalIndex();
+                          k_mom = Daughter.mothers_as<aod::McParticles>().back().globalIndex();
                           daughter_count++;
                         }
                       }
                     }
                   }
                   if(daughter_count==2){
-                    histos.fill(HIST("counter1"), 0.5);
                     histos.fill(HIST("D0Decay_muK"), secver_z);
                     
                     //Scan all mfttrack for calculate the PCA
-                    int64_t predictID;
+                    int64_t predictID, preID;
+                    float dist_2track;
                     for(auto& mfttrack : mfttracks){
                       if(!mfttrack.has_collision() || !mfttrack.has_mcParticle()) continue;
-                      auto MCmft = mfttrack.mcParticle();
-
-                      //if(MCmft.globalIndex()==fwdID) LOGF(info, "MFT ID: %d, FWD ID: %d", MCmft.globalIndex(), fwdID);
-                      if(MCmft.globalIndex()==fwdID) continue;
-                      
                       auto mcParticle_mft = mfttrack.mcParticle();
+                      auto mftcollID = mfttrack.collisionId();
+                      if(mftcollID!=fwdcollID) continue;
+                      if(mcParticle_mft.globalIndex()==fwdID) continue;
+                      
                       Double_t verZ = collision.posZ();
                       double mftchi2 = mfttrack.chi2();
                       SMatrix5 mftpars(mfttrack.x(), mfttrack.y(), mfttrack.phi(), mfttrack.tgl(), mfttrack.signed1Pt());
@@ -297,23 +295,40 @@ struct MyAnalysisTask {
                       float pre_kx = mftX + t*Ncx;
                       float pre_ky = mftY + t*Ncy;
                       float pre_kz = mftZ + t*Ncz;
-                      float dist_2track = sqrt(pow(pre_kx-pre_mux, 2)+pow(pre_ky-pre_muy, 2)+pow(pre_kz-pre_muz, 2));
 
-                      if(pcaCan>dist_2track){
-                        pcaCan = dist_2track;
-                        idPDG = mcParticle_mft.pdgCode();
-                        mftpT = mfttrack.p();
-                        predictID = mcParticle_mft.globalIndex();
-                        pcaZ = (pre_muz+pre_kz)/2;
+                      if(((pre_muz+pre_kz)/2)>=mumftZ && ((pre_muz+pre_kz)/2)<=collision.posZ()){
+                        dist_2track = sqrt(pow(pre_kx-pre_mux, 2)+pow(pre_ky-pre_muy, 2)+pow(pre_kz-pre_muz, 2));
                         pcaX = (pre_mux+pre_kx)/2;
-                        pcaY = (pre_muy+pre_kx)/2;
-                      }else if(pcaCan==dist_2track && fabs(mcParticle_mft.pdgCode())==321){
-                        idPDG = mcParticle_mft.pdgCode();
-                        predictID = mcParticle_mft.globalIndex();
+                        pcaY = (pre_muy+pre_ky)/2;
                         pcaZ = (pre_muz+pre_kz)/2;
-                        pcaX = (pre_mux+pre_kx)/2;
-                        pcaY = (pre_muy+pre_kx)/2;
-                        mftpT = mfttrack.p();
+                        preidPDG = mcParticle_mft.pdgCode();
+                        preID = mcParticle_mft.globalIndex();
+                      }else{
+                        for(int i=0; i<=500000 ; i++){
+                          s = 1 - 0.000001*i;
+                          auto x0 = mumftX + s*Nax;
+                          auto y0 = mumftY + s*Nay;
+                          auto z0 = mumftZ + s*Naz;
+                          auto paraT = (Ncx*(x0-mftX)+Ncy*(y0-mftY)+Ncz*(z0-mftZ))/B2;
+                          auto d = sqrt(pow(x0-(mftX+paraT*Ncx),2)+pow(y0-(mftY+paraT*Ncy),2)+pow(z0-(mftZ+paraT*Ncz),2));
+                          if(d<=dist_2track){
+                            dist_2track = d;
+                            pcaX = (x0+(mftX+paraT*Ncx))/2;
+                            pcaY = (y0+(mftY+paraT*Ncy))/2;
+                            pcaZ = (z0+(mftZ+paraT*Ncz))/2;
+                            preidPDG = mcParticle_mft.pdgCode();
+                            preID = mcParticle_mft.globalIndex();
+                          }
+                        }
+                      }
+
+                      if(predictdist>dist_2track){
+                        predictdist = dist_2track;
+                        predictX = pcaX;
+                        predictY = pcaY;
+                        predictZ = pcaZ;
+                        idPDG = preidPDG;
+                        predictID = preID;
                       }
                     }
 
@@ -329,15 +344,13 @@ struct MyAnalysisTask {
                     if(fabs(idPDG) == 313 ) histos.fill(HIST("predictPDG"), 8.0, 1);
                     if(fabs(idPDG) == 321 ){
                       histos.fill(HIST("predictPDG"), 9.0, 1);
-                      histos.fill(HIST("PredictZ"), pcaZ);
-                      histos.fill(HIST("PredictX"), pcaX);
-                      histos.fill(HIST("PredictY"), pcaY);
-                      histos.fill(HIST("MFT_Kaon_pT"), mftpT);
+                      //histos.fill(HIST("PredictZ"), predictZ-collision.posZ());
+                      //histos.fill(HIST("PredictX"), predictX);
+                      //histos.fill(HIST("PredictY"), predictY);
                     }else{
-                      histos.fill(HIST("PredictZ_bg"), pcaZ);
-                      histos.fill(HIST("PredictX_bg"), pcaX);
-                      histos.fill(HIST("PredictY_bg"), pcaY);
-                      histos.fill(HIST("MFT_bg_pT"), mftpT);
+                      histos.fill(HIST("PredictZ_bg"), predictZ-collision.posZ());
+                      //histos.fill(HIST("PredictX_bg"), predictX);
+                      //histos.fill(HIST("PredictY_bg"), predictY);
                     }
                     if(fabs(idPDG) == 323 ) histos.fill(HIST("predictPDG"), 10.0, 1);
                     if(fabs(idPDG) == 333 ) histos.fill(HIST("predictPDG"), 12.0, 1);
@@ -351,6 +364,8 @@ struct MyAnalysisTask {
                       histos.fill(HIST("counter1"), 0.5);
                       if(mftID==predictID){
                         histos.fill(HIST("counter2"), 0.5);
+                        histos.fill(HIST("PredictZ"), predictZ-collision.posZ());
+                        histos.fill(HIST("chi2MCHMFT"), chi2GMT);
                       }
                     }
                   }
