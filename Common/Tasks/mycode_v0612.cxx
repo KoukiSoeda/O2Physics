@@ -43,10 +43,10 @@ struct MyAnalysisTask {
 	Configurable<int> nBinsPhi{"nBinsPhi", 3000, ""};
 	Configurable<int> nBinsXY{"nBinsXY", 10000, "N bins in X and Y axis"};
 	Configurable<int> nBinsZ{"nBinsZ", 5000, "N bins in Z axis"};
-  Configurable<int> nBinsR{"nBinsR", 20010, "N bins in R"};
-	Configurable<int> nBinsDCA{"nBinsDCA", 200010, "N bins in DCA"};
+  Configurable<int> nBinsR{"nBinsR", 60010, "N bins in R"};
+	Configurable<int> nBinsDCA{"nBinsDCA", 10001, "N bins in DCA"};
 	Configurable<int> nBinsDCAT{"nBinsDCAT", 1000, "N bins in DCAT"};
-	Configurable<int> nBinsDist{"nBinsDist", 800010, ""};
+	Configurable<int> nBinsDist{"nBinsDist", 400010, ""};
 	Configurable<int> fwdTrackType{"fwdTrackType", 0, "N TrackType in fwd"};
 	Configurable<int> fwdTrackType2{"fwdTrackType2", 2, "N TrackType in fwd2"};
 	Configurable<float> zaxisMaxCut{"zaxisMaxCut", 40, "MaxCutForPCA"};
@@ -63,11 +63,11 @@ struct MyAnalysisTask {
 		const AxisSpec axisPDGv2(1001, -0.5, +1000.5, "");
 		const AxisSpec axisX(nBinsXY, -10, 10, "x(cm)");
 		const AxisSpec axisY(nBinsXY, -10, 10, "y(cm)");
-		const AxisSpec axisZ(nBinsZ, -50.0005, 50.0005, "z(cm)");
-    const AxisSpec axisR(nBinsR, -0.0005, 2.0005, "r(cm)");
-		const AxisSpec axisDist(nBinsDist, -40.0005, 40.0005, "z(cm)");
-		const AxisSpec axisDCAX(nBinsDCA, -1.00005, 1.00005, "x(cm)");
-		const AxisSpec axisDCAY(nBinsDCA, -1.00005, 1.00005, "y(cm)");
+		const AxisSpec axisZ(nBinsZ, -60.0005, 50.0005, "z(cm)");
+    const AxisSpec axisR(nBinsR, -1.0005, 5.0005, "r(cm)");
+		const AxisSpec axisDist(nBinsDist, -0.0005, 40.0005, "z(cm)");
+		const AxisSpec axisDCAX(nBinsDCA, -0.50005, 0.50005, "x(cm)");
+		const AxisSpec axisDCAY(nBinsDCA, -0.50005, 0.50005, "y(cm)");
 		const AxisSpec axisDCAT(nBinsDCAT, -0.01, +1, "cm");
 		const AxisSpec axisEta{nBinsEta, -10, +10, "#eta"};
 		const AxisSpec axisPhi{nBinsPhi, -6.5, +6.5, "#phi"};
@@ -82,6 +82,7 @@ struct MyAnalysisTask {
     histos.add("Distance_D0_z", "Distance_D0_z", kTH1F, {axisDist});
     histos.add("D0Decay_muK", "D0Decay_muK", kTH1F, {axisZ});
 		histos.add("PredictZ", "PredictZ", kTH1F, {axisZ});
+    //histos.add("PredictZmft", "PredictZmft", kTH1F, {axisZ});
     histos.add("chi2MCHMFT_correct", "chi2MCHMFT_correct", kTH1F, {axisChi2});
     histos.add("xy_correct", "xy_correct", kTH1F, {axisR});
     histos.add("DCAXY_correct", "DCAXY_correct", kTH2F, {axisDCAX, axisDCAY});
@@ -90,6 +91,7 @@ struct MyAnalysisTask {
     histos.add("xy_incorrect", "xy_incorrect", kTH1F, {axisR});
     histos.add("xy_actual", "xy_actual", kTH1F, {axisR});
     histos.add("DCAXY_incorrect", "DCAXY_incorrect", kTH2F, {axisDCAX, axisDCAY});
+    histos.add("incorrect_CollisionPos", "CollisionPos", kTH1F, {axisVertex});
 		histos.add("predictPDG", "predictPDG", kTH1F, {axisPDG});
 		histos.add("counter1", "counter1", kTH1F, {axisCounter});
 		histos.add("counter2", "counter2", kTH1F, {axisCounter});
@@ -153,7 +155,7 @@ struct MyAnalysisTask {
 
 			//Information of FwdTracks
 			for(auto& fwdtrack : fwdtracks){
-        if(collision.posZ()>10 && collision.posZ()<-10) continue;
+        //if(collision.posZ()>10 || collision.posZ()<-10) continue;
 				histos.fill(HIST("TrackType"), fwdtrack.trackType());
 
 				if(!fwdtrack.has_mcParticle()) continue;
@@ -166,6 +168,7 @@ struct MyAnalysisTask {
 				float mu_phi, mu_eta, k_phi, k_eta;
 				if(fwdtrack.trackType()==fwdTrackType){
 					auto chi2GMT = fwdtrack.chi2MatchMCHMFT();
+          //if(chi2GMT>50) continue; //chi2 cut
 
 					if(chi2GMT==-1) continue;
 					if(fabs(fwdTrackPDG)==13){
@@ -190,7 +193,7 @@ struct MyAnalysisTask {
                   
                   for(auto Daughter : Daughters){
 
-                    if(fabs(Daughter.pdgCode())==13){//muon
+                    if(fabs(Daughter.pdgCode())==13){ //muon
                       auto mu_ID = Daughter.globalIndex();
                       if(mu_ID==a_ID){ //Check the index
                         Double_t verZ = collision.posZ();
@@ -201,8 +204,8 @@ struct MyAnalysisTask {
                         o2::track::TrackParCovFwd mftpars1{fwdtrack.z(), mftpars, mftcovs, mftchi2};
                         mftpars1.propagateToZlinear(verZ);
 
-                        mudcaX = mftpars1.getX() - collision.posX();
-                        mudcaY = mftpars1.getY() - collision.posY();
+                        mudcaX = mftpars1.getX();
+                        mudcaY = mftpars1.getY();
                         mumftX = fwdtrack.x();
                         mumftY = fwdtrack.y();
                         mumftZ = fwdtrack.z();
@@ -210,7 +213,7 @@ struct MyAnalysisTask {
                         mu_eta = fwdtrack.eta();
                         secver_z = Daughter.vz() - collision.posZ();
 
-                        histos.fill(HIST("Distance_D0_z"), Daughter.vz()-mcMom.vz()); //fabs(Daughter.vz()-mcMom.vz()));
+                        histos.fill(HIST("Distance_D0_z"), fabs(Daughter.vz()-mcMom.vz()));
                         mu_mom = Daughter.mothers_as<aod::McParticles>().back().globalIndex();
                         if(secver_z<0) daughter_count++;
                       }
@@ -235,8 +238,8 @@ struct MyAnalysisTask {
                           kmftX = mfttrack.x();
                           kmftY = mfttrack.y();
                           kmftZ = mfttrack.z();
-                          kdcaX = mftpars1.getX() - collision.posX();
-                          kdcaY = mftpars1.getY() - collision.posY();
+                          kdcaX = mftpars1.getX();
+                          kdcaY = mftpars1.getY();
                           k_mom = Daughter.mothers_as<aod::McParticles>().back().globalIndex();
                           daughter_count++;
                         }
@@ -292,8 +295,10 @@ struct MyAnalysisTask {
                       auto mftX = mfttrack.x();
                       auto mftY = mfttrack.y();
                       auto mftZ = mfttrack.z();
-                      auto dcaX = mftpars1.getX() - collision.posX();
-                      auto dcaY = mftpars1.getY() - collision.posY();
+                      auto dcaX = mftpars1.getX();
+                      auto dcaY = mftpars1.getY();
+                      if(dcaX-collision.posX()<=-0.03 || dcaX-collision.posX()>=0.03) continue;
+                      if(dcaY-collision.posY()<=-0.03 || dcaY-collision.posY()>=0.03) continue;
 
                       auto Nax = mudcaX - mumftX;
                       auto Nay = mudcaY - mumftY;
@@ -316,7 +321,7 @@ struct MyAnalysisTask {
                       float pre_ky = mftY + t*Ncy;
                       float pre_kz = mftZ + t*Ncz;
 
-                      if(((pre_muz+pre_kz)/2)>=mumftZ && ((pre_muz+pre_kz)/2)<=collision.posZ()){
+                      if(((pre_muz+pre_kz)/2)-collision.posZ()>=-30 && ((pre_muz+pre_kz)/2)-collision.posZ()<=0){
                         dist_2track = sqrt(pow(pre_kx-pre_mux, 2)+pow(pre_ky-pre_muy, 2)+pow(pre_kz-pre_muz, 2));
                         pcaX = (pre_mux+pre_kx)/2;
                         pcaY = (pre_muy+pre_ky)/2;
@@ -330,6 +335,7 @@ struct MyAnalysisTask {
                           auto x0 = mumftX + s*Nax;
                           auto y0 = mumftY + s*Nay;
                           auto z0 = mumftZ + s*Naz;
+                          if(z0-collision.posZ()<-30) continue;
                           auto paraT = (Ncx*(x0-mftX)+Ncy*(y0-mftY)+Ncz*(z0-mftZ))/B2;
                           auto d = sqrt(pow(x0-(mftX+paraT*Ncx),2)+pow(y0-(mftY+paraT*Ncy),2)+pow(z0-(mftZ+paraT*Ncz),2));
                           if(d<=dist_2track){
@@ -344,23 +350,29 @@ struct MyAnalysisTask {
                         }
                       }
 
+                      if(r_can<=0.005) continue;
+
                       if(predictdist>dist_2track){
                         predictdist = dist_2track;
-                        predictX = pcaX;
-                        predictY = pcaY;
-                        predictZ = pcaZ;
+                        predictX = pcaX - collision.posX();
+                        predictY = pcaY - collision.posY();
+                        predictZ = pcaZ - collision.posZ();
                         r_xy = r_can;
                         idPDG = preidPDG;
                         predictID = preID;
-                        actual_dcaX = dcaX;
-                        actual_dcaY = dcaY;
+                        actual_dcaX = dcaX - collision.posX();
+                        actual_dcaY = dcaY - collision.posY();
                       }
                     }
 
                     //histos.fill(HIST("predictPDG"), fabs(idPDG));
                     if(fabs(idPDG) < 38) histos.fill(HIST("predictPDG"), 0.0, 1);
                     if(fabs(idPDG) == 111) histos.fill(HIST("predictPDG"), 1.0, 1);
-                    if(fabs(idPDG) == 211) histos.fill(HIST("predictPDG"), 2.0, 1);
+                    if(fabs(idPDG) == 211){
+                       histos.fill(HIST("predictPDG"), 2.0, 1);
+                       histos.fill(HIST("DCAXY_incorrect"), actual_dcaX, actual_dcaY);
+                       histos.fill(HIST("DCAXY_correct"), mudcaX-collision.posX(), mudcaY-collision.posY());
+                    }
                     if(fabs(idPDG) == 113 ) histos.fill(HIST("predictPDG"), 3.0, 1);
                     if(fabs(idPDG) == 130 ) histos.fill(HIST("predictPDG"), 4.0, 1);
                     if(fabs(idPDG) == 221 ) histos.fill(HIST("predictPDG"), 5.0, 1);
@@ -380,17 +392,19 @@ struct MyAnalysisTask {
                       histos.fill(HIST("counter1"), 0.5);
                       if(mftID==predictID){ // Correct
                         histos.fill(HIST("counter2"), 0.5);
-                        histos.fill(HIST("PredictZ"), predictZ-collision.posZ());
+                        histos.fill(HIST("PredictZ"), predictZ);
+                        //histos.fill(HIST("PredictZmft"), kmftZ);
                         histos.fill(HIST("chi2MCHMFT_correct"), chi2GMT);
                         histos.fill(HIST("xy_correct"), r_xy);
-                        histos.fill(HIST("DCAXY_correct"), actual_dcaX, actual_dcaY);
+                        //histos.fill(HIST("DCAXY_correct"), actual_dcaX, actual_dcaY);
 
                       }else{ // Incorrect
-                        histos.fill(HIST("PredictZ_bg"), predictZ-collision.posZ());
+                        histos.fill(HIST("PredictZ_bg"), predictZ);
                         histos.fill(HIST("chi2MCHMFT_incorrect"), chi2GMT);
                         histos.fill(HIST("xy_incorrect"), r_xy);
                         histos.fill(HIST("xy_actual"), r_actual);
-                        histos.fill(HIST("DCAXY_incorrect"), actual_dcaX, actual_dcaY);
+                        histos.fill(HIST("incorrect_CollisionPos"), collision.posZ());
+                        //histos.fill(HIST("DCAXY_incorrect"), actual_dcaX, actual_dcaY);
 
                       }
                     }
