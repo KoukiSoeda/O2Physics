@@ -116,7 +116,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
         if(mcMom_f.pdgCode()==mcMom.pdgCode() && fabs(mcMom.pdgCode())==421){
           auto Daughters = mcMom.daughters_as<aod::McParticles>();
           int dc = 0;
-          int mucolid, mcmuid, mupdg, mckid, kpdg;
+          int mccolid, mucolid, mcmuid, mupdg, mckid, kpdg;
           float Col_x, Col_y, Col_z, mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ, mumcX, mumcY, mumcZ, kmcZ;
           Col_x = collision.posX();
           Col_y = collision.posY();
@@ -144,6 +144,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                     mumcY = mcParticle_mft.vy();
                     mumcZ = mcParticle_mft.vz();
                     mucolid = mfttrack.collisionId();
+                    mccolid = mcParticle_mft.mcCollisionId();
                     mcmuid = mfttrack.mcParticleId();
                     mupdg = mcParticle_mft.pdgCode();
                     dc++;
@@ -177,46 +178,48 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
               }
             }
           }
-          if(dc==2 && mumcZ==kmcZ){
-            histos.fill(HIST("Distance_D0_z"), fabs(mcParticle_fwd.vz()-mcMom.vz()));
-            auto Nax = mudcaX - mumftX;
-            auto Nay = mudcaY - mumftY;
-            auto Naz = Col_z - mumftZ;
-            auto Ncx = kdcaX - kmftX;
-            auto Ncy = kdcaY - kmftY;
-            auto Ncz = Col_z - kmftZ;
-            auto A1 = Nax*Nax + Nay*Nay + Naz*Naz;
-            auto A2 = -(Nax*Ncx + Nay*Ncy + Naz*Ncz);
-            auto A3 = (mumftX-kmftX)*Nax + (mumftY-kmftY)*Nay + (mumftZ-kmftZ)*Naz;
-            auto B1 = A2;
-            auto B2 = Ncx*Ncx + Ncy*Ncy + Ncz*Ncz;
-            auto B3 = (kmftX-mumftX)*Ncx + (kmftY-mumftY)*Ncy + (kmftZ-mumftZ)*Ncz;
-            auto t = (A1*B3-A3*B1)/(A2*B1-A1*B2);
-            auto s = -((A2*t+A3)/A1);
-            float pre_mux = mumftX + s*Nax;
-            float pre_muy = mumftY + s*Nay;
-            float pre_muz = mumftZ + s*Naz;
-            float pre_kx = kmftX + t*Ncx;
-            float pre_ky = kmftY + t*Ncy;
-            float pre_kz = kmftZ + t*Ncz;
-            float pcaX = (pre_mux+pre_kx)/2;
-            float pcaY = (pre_muy+pre_ky)/2;
-            float pcaZ = (pre_muz+pre_kz)/2;
-            float r = sqrt(pow(pcaX-mumcX, 2)+pow(pcaY-mumcY, 2)+pow(pcaZ-mumcZ, 2));
-            histos.fill(HIST("PredictZ"), pcaZ-Col_z);
-            histos.fill(HIST("PCAZ_Answer"), mumcZ-collision.mcCollision().posZ());
-            if(fabs(mumcZ-collision.mcCollision().posZ())>5){
-              histos.fill(HIST("Diff_D0Ver_ColVer_5over"), mcMom.vz()-collision.mcCollision().posZ());
-              //LOGF(info, "Collision GlobaIndex: %d, Track CollisionID: %d", collision.globalIndex(), mfttrack.collisionId());
-            }else{
-              histos.fill(HIST("Diff_D0Ver_ColVer"), mcMom.vz()-collision.mcCollision().posZ());
+          if(collision.mcCollisionId()==mccolid){
+            if(dc==2 && mumcZ==kmcZ){
+              histos.fill(HIST("Distance_D0_z"), fabs(mcParticle_fwd.vz()-mcMom.vz()));
+              auto Nax = mudcaX - mumftX;
+              auto Nay = mudcaY - mumftY;
+              auto Naz = Col_z - mumftZ;
+              auto Ncx = kdcaX - kmftX;
+              auto Ncy = kdcaY - kmftY;
+              auto Ncz = Col_z - kmftZ;
+              auto A1 = Nax*Nax + Nay*Nay + Naz*Naz;
+              auto A2 = -(Nax*Ncx + Nay*Ncy + Naz*Ncz);
+              auto A3 = (mumftX-kmftX)*Nax + (mumftY-kmftY)*Nay + (mumftZ-kmftZ)*Naz;
+              auto B1 = A2;
+              auto B2 = Ncx*Ncx + Ncy*Ncy + Ncz*Ncz;
+              auto B3 = (kmftX-mumftX)*Ncx + (kmftY-mumftY)*Ncy + (kmftZ-mumftZ)*Ncz;
+              auto t = (A1*B3-A3*B1)/(A2*B1-A1*B2);
+              auto s = -((A2*t+A3)/A1);
+              float pre_mux = mumftX + s*Nax;
+              float pre_muy = mumftY + s*Nay;
+              float pre_muz = mumftZ + s*Naz;
+              float pre_kx = kmftX + t*Ncx;
+              float pre_ky = kmftY + t*Ncy;
+              float pre_kz = kmftZ + t*Ncz;
+              float pcaX = (pre_mux+pre_kx)/2;
+              float pcaY = (pre_muy+pre_ky)/2;
+              float pcaZ = (pre_muz+pre_kz)/2;
+              float r = sqrt(pow(pcaX-mumcX, 2)+pow(pcaY-mumcY, 2)+pow(pcaZ-mumcZ, 2));
+              histos.fill(HIST("PredictZ"), pcaZ-Col_z);
+              histos.fill(HIST("PCAZ_Answer"), mumcZ-collision.mcCollision().posZ());
+              if(fabs(mumcZ-collision.mcCollision().posZ())>5){
+                histos.fill(HIST("Diff_D0Ver_ColVer_5over"), mcMom.vz()-collision.mcCollision().posZ());
+                //LOGF(info, "Collision GlobaIndex: %d, Track CollisionID: %d", collision.globalIndex(), mfttrack.collisionId());
+              }else{
+                histos.fill(HIST("Diff_D0Ver_ColVer"), mcMom.vz()-collision.mcCollision().posZ());
+              }
+              histos.fill(HIST("PredictX"), pcaX-Col_x);
+              histos.fill(HIST("PCAX_Answer"), mumcX-Col_x);
+              histos.fill(HIST("PredictY"), pcaY-Col_y);
+              histos.fill(HIST("PCAY_Answer"), mumcY-Col_y);
+              histos.fill(HIST("MCvertex_Estvertex"), r);
+              mcpairtable(mucolid,mcmuid,mupdg,mckid,kpdg,Col_x,Col_y,Col_z,mumcX,mumcY,mumcZ);
             }
-            histos.fill(HIST("PredictX"), pcaX-Col_x);
-            histos.fill(HIST("PCAX_Answer"), mumcX-Col_x);
-            histos.fill(HIST("PredictY"), pcaY-Col_y);
-            histos.fill(HIST("PCAY_Answer"), mumcY-Col_y);
-            histos.fill(HIST("MCvertex_Estvertex"), r);
-            mcpairtable(mucolid,mcmuid,mupdg,mckid,kpdg,Col_x,Col_y,Col_z,mumcX,mumcY,mumcZ);
           }
         }
       }
