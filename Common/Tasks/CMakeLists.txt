@@ -86,3 +86,9 @@ o2physics_add_dpl_workflow(my-code-v0704
                   PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
                                         O2::ReconstructionDataFormats
                   COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(my-code-v0718
+                  SOURCES mycode_v0718.cxx
+                  PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
+                                        O2::ReconstructionDataFormats
+                  COMPONENT_NAME Analysis)
