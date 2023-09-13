@@ -41,6 +41,7 @@ namespace truepair
 DECLARE_SOA_COLUMN(ColId, colid, int);
 DECLARE_SOA_COLUMN(MuId, muid, int);
 DECLARE_SOA_COLUMN(Mupdg, mupdg, int);
+DECLARE_SOA_COLUMN(Mupt, mupt, float);
 DECLARE_SOA_COLUMN(KId, kid, int);
 DECLARE_SOA_COLUMN(Kpdg, kpdg, int);
 DECLARE_SOA_COLUMN(KdcaX, kdcax, float);
@@ -60,6 +61,7 @@ DECLARE_SOA_TABLE(MCPair, "AOD", "MCPAIR",
                   truepair::ColId,
                   truepair::MuId,
                   truepair::Mupdg,
+                  truepair::Mupt,
                   truepair::KId,
                   truepair::Kpdg,
                   truepair::KdcaX,
@@ -117,6 +119,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
     histos.add("MFT_XY_midpt", "MFT_XY_midpt", kTH1F, {axisMFT});
     histos.add("MFT_XY_highpt", "MFT_XY_highpt", kTH1F, {axisMFT});
     histos.add("MuonpT_fromD0", "MuonpT_fromD0", kTH1F, {axispT});
+    histos.add("DCAT_Muon", "DCAT_Muon", kTH1F, {axisDCAT});
     histos.add("DCAT_Kaon", "DCAT_Kaon", kTH1F, {axisDCAT});
     histos.add("Accept_rate_2sigma", "Accept_rate_2sigma", kTH1F, {axisAccept});
     histos.add("Primary_XY", "Primary_XY", kTH1F, {axisR});
@@ -127,6 +130,9 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
 		histos.add("counter_1sigma", "counter_1sigma", kTH1F, {axisCounter});
     histos.add("counter_2sigma", "counter_2sigma", kTH1F, {axisCounter});
     histos.add("counter_3sigma", "counter_3sigma", kTH1F, {axisCounter});
+    histos.add("1sigma_parCol", "1sigma_parCol", kTH1F, {axisAccept});
+    histos.add("2sigma_parCol", "2sigma_parCol", kTH1F, {axisAccept});
+    histos.add("3sigma_parCol", "3sigma_parCol", kTH1F, {axisAccept});
   }
 
   void process(soa::Join<aod::Collisions, aod::McCollisionLabels>::iterator const& collision,
@@ -163,7 +169,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
               int dc = 0;
               int fc = 0;
               int mcmucolid, mckcolid, mucolid, mcmuid, mupdg, mckid, kpdg;
-              float mcmupt, Col_x, Col_y, Col_z, mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ, mumcX, mumcY, mumcZ, kmcZ;
+              float mcmupt, mupt, Col_x, Col_y, Col_z, mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ, mumcX, mumcY, mumcZ, kmcZ;
               Col_x = collision.posX();
               Col_y = collision.posY();
               Col_z = collision.posZ();
@@ -190,6 +196,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                           mumcY = mcParticle_mft.vy();
                           mumcZ = mcParticle_mft.vz();
                           mcmupt = mcParticle_mft.pt();
+                          mupt = mfttrack.p();
                           mucolid = mfttrack.collisionId();
                           mcmucolid = mcParticle_mft.mcCollisionId();
                           mcmuid = mfttrack.mcParticleId();
@@ -232,7 +239,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
               if(mucolid==fwdColId && collision.mcCollisionId()==mcmucolid){
                 if(dc+fc==2 && mumcZ==kmcZ){
                   histos.fill(HIST("Distance_D0_z"), fabs(mcParticle_fwd.vz()-mcMom.vz()));
-                  histos.fill(HIST("DCAT_Kaon"), sqrt(pow(kdcaX,2)+pow(kdcaY,2)));
+                  
                   auto Nax = mudcaX - mumftX;
                   auto Nay = mudcaY - mumftY;
                   auto Naz = Col_z - mumftZ;
@@ -263,6 +270,8 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                   float r = sqrt(pow((mumftX+s_org*Nax)-(kmftX+t_org*Ncx), 2)+pow((mumftY+s_org*Nay)-(kmftY+t_org*Ncy), 2)+pow((mumftZ+s_org*Naz)-(kmftZ+t_org*Ncz), 2));
                   float r_org = sqrt(pow(pcaX-mumcX, 2)+pow(pcaY-mumcY, 2)+pow(pcaZ-mumcZ, 2));
                   histos.fill(HIST("PredictZ"), pcaZ-Col_z);
+                  histos.fill(HIST("DCAT_Muon"), sqrt(pow(mudcaX-Col_x,2)+pow(mudcaY-Col_y,2)));
+                  histos.fill(HIST("DCAT_Kaon"), sqrt(pow(kdcaX-Col_x,2)+pow(kdcaY-Col_y,2)));
                   histos.fill(HIST("PCAtoEst_R"), r);
                   histos.fill(HIST("PCAZ_Answer"), mumcZ-collision.mcCollision().posZ());
                   histos.fill(HIST("PredictX"), pcaX-Col_x);
@@ -279,17 +288,32 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                   histos.fill(HIST("MuonpT_fromD0"), mcmupt);
                   if(mcmupt>0.5 && mcmupt<=1.0) histos.fill(HIST("MFT_XY_lowpt"), MFT_r);
                   if(mcmupt>1.0 && mcmupt<=2.0) histos.fill(HIST("MFT_XY_midpt"), MFT_r);
-                  if(mcmupt>2.0 && mcmupt<=4.0) histos.fill(HIST("MFT_XY_highpt"), MFT_r);
-                  mcpairtable(mucolid,mcmuid,mupdg,mckid,kpdg,kdcaX,kdcaY,Col_x,Col_y,Col_z,mumcX,mumcY,mumcZ,pcaX-Col_x,pcaY-Col_y,pcaZ-Col_z,r);
-                  if(pcaZ>=0){
+                  if(mcmupt>2.0 /*&& mcmupt<=4.0*/) histos.fill(HIST("MFT_XY_highpt"), MFT_r);
+                  mcpairtable(mucolid,mcmuid,mupdg,mupt,mckid,kpdg,kdcaX-Col_x,kdcaY-Col_y,Col_x,Col_y,Col_z,mumcX,mumcY,mumcZ,pcaX-Col_x,pcaY-Col_y,pcaZ-Col_z,r);
+                  if((pcaZ-Col_z)>=0){
                     auto r_muk_plus = sqrt(pow((mudcaX-kdcaX)-Col_x,2)+pow((mudcaY-kdcaY)-Col_y,2));
                     histos.fill(HIST("r_muk_plus"), r_muk_plus);
                   }else{
                     auto r_muk_minus = sqrt(pow(pre_mux-pre_kx,2)+pow(pre_muy-pre_ky,2)+pow(pre_muz-pre_kz,2));
                     histos.fill(HIST("r_muk_minus"), r_muk_minus);
                   }
+
+                  //For calculating of efficiency
+                  if(mcmupt>1.0 && mcmupt<=2.0){
+                    if(MFT_r<=10){
+                      if(sqrt(pow(kdcaX,2)+pow(kdcaY,2))<(0.04678+3*0.05337)){
+                        if((pcaZ-Col_z)<0 && (pcaZ-Col_z)>=((-0.8555)*2+(-0.2236))){
+                          histos.fill(HIST("counter1"), 0.5);
+                        }
+                      }
+                    }
+                  }
+
                   /*int ntrack_perCol_int = 0;
                   int ntrack_accept_int = 0;
+                  int nt_1sigma = 0;
+                  int nt_2sigma = 0;
+                  int nt_3sigma = 0;
                   int nCan = 0;
                   for(auto& otmfttrack : mfttracks){
                     if(otmfttrack.has_collision() && otmfttrack.has_mcParticle()){
@@ -331,6 +355,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                             if(cut_r<=(xy_mean+3*xy_std) && count_r_3sigma==0){
                               histos.fill(HIST("counter_3sigma"), 0.5);
                               count_r_3sigma++;
+                              nt_3sigma++;
                             }
 
                             if(cut_z_2sigma<=(z_mean+2*z_std)+Col_z){
@@ -341,6 +366,7 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                               if(cut_r<=(xy_mean+2*xy_std) && count_r_2sigma==0){
                                 histos.fill(HIST("counter_2sigma"), 0.5);
                                 count_r_2sigma++;
+                                nt_2sigma++;
                                 ntrack_accept_int++;
                               }
                             }
@@ -352,7 +378,8 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                               auto cut_r = sqrt(pow(cut_xaxis,2)+pow(cut_yaxis,2));
                               if(cut_r<=(xy_mean+xy_std) && count_r_1sigma==0){
                                 histos.fill(HIST("counter_1sigma"), 0.5);
-                                count_r_1sigma++;                            
+                                count_r_1sigma++;
+                                nt_1sigma++;
                               }
                             }
                             //if(cut_z==0)LOGF(info, "R: %f, X: %f, Y: %f", cut_r,cut_xaxis,cut_yaxis);
@@ -363,6 +390,16 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
                     }
                   }
                   if(nCan!=0) histos.fill(HIST("nCandidate"), nCan);
+                  float fnt_1sigma = nt_1sigma;
+                  float fnt_2sigma = nt_2sigma;
+                  float fnt_3sigma = nt_3sigma;
+                  float fcan = nCan;
+                  float sigma_1_can = fnt_1sigma/fcan;
+                  float sigma_2_can = fnt_2sigma/fcan;
+                  float sigma_3_can = fnt_3sigma/fcan;
+                  histos.fill(HIST("1sigma_parCol"), sigma_1_can);
+                  histos.fill(HIST("2sigma_parCol"), sigma_2_can);
+                  histos.fill(HIST("3sigma_parCol"), sigma_3_can);
                   float ntrack_perCol_float = ntrack_perCol_int;
                   int ntrack_accept_float = ntrack_accept_int;
                   float rate_accept = ntrack_accept_float/ntrack_perCol_float;
@@ -377,7 +414,268 @@ struct McInfomation{ // PCA estimation via Single muon and Single Kaon (ture pai
   }
 };
 
-struct MyAnalysisTask{
+struct Mytaskv2{
+  HistogramRegistry histos{"histos", {}, OutputObjHandlingPolicy::AnalysisObject};
+  Configurable<int> nBinsPt{"nBinsPt", 25010, "N bins pt axis"};
+  Configurable<int> nBinsZ{"nBinsZ", 1100010, "N bins in Z axis"};
+  Configurable<int> nBinsR{"nBinsR", 60010, "N bins in R"};
+  Configurable<int> nBinsCut{"nBinsCut", 2001, "N bins in cut"};
+  Configurable<int> nBinsDCAT{"nBinsDCAT", 50001, "N bins in DCAT"};
+  
+  void init(InitContext const&){
+    const AxisSpec axisZ(nBinsZ, -60.0005, 50.0005, "z(cm)");
+    const AxisSpec axisPDG{21, -0.5, 20.5, ""};
+    const AxisSpec axisDCAT(nBinsDCAT, -0.0005, 5.0005, "DCAT");
+    const AxisSpec axisMFT{510010, -1.0005, 50.0005, "xy(cm)"};
+    
+    histos.add("Est_PCAZ_all", "Est_PCAZ_all", kTH1F, {axisZ});
+    histos.add("Est_PCAZ_Correct", "Est_PCAZ_Correct", kTH1F, {axisZ});
+    histos.add("Est_PCAZ_zcut", "Est_PCAZ_zcut", kTH1F, {axisZ});
+    histos.add("Est_PCAZ_True", "Est_PCAZ_True", kTH1F, {axisZ});
+    histos.add("pairPDG", "pairPDG", kTH1F, {axisPDG});
+    histos.add("DCAT_all", "DCAT_all", kTH1F, {axisDCAT});
+    histos.add("MFT_XY_All", "MFT_XY_All", kTH1F, {axisMFT});
+    histos.add("Dist_Primary", "Dist_Primary", kTH1F, {axisDCAT});
+
+    auto mumompdg_d = histos.get<TH1>(HIST("pairPDG"));
+    auto* x3 = mumompdg_d->GetXaxis();
+    x3->SetBinLabel(1, "Primary"); // 1-37
+    x3->SetBinLabel(2, "Pion0"); // 111
+    x3->SetBinLabel(3, "Pion±"); // 211
+    x3->SetBinLabel(4, "pho"); // 113
+    x3->SetBinLabel(5, "K_l"); // 130
+    x3->SetBinLabel(6, "Eta"); // 221
+    x3->SetBinLabel(7, "Omega"); // 223
+    x3->SetBinLabel(8, "K_s"); // 310
+    x3->SetBinLabel(9, "K*0(892)"); // 313
+    x3->SetBinLabel(10, "K±"); // 321
+    x3->SetBinLabel(11, "K*±(892)"); // 323
+    x3->SetBinLabel(12, "Eta_prim"); // 331
+    x3->SetBinLabel(13, "Phi"); // 333
+    x3->SetBinLabel(14, "D±"); // 411
+    x3->SetBinLabel(15, "D*±"); // 413
+    x3->SetBinLabel(16, "D0"); // 421
+    x3->SetBinLabel(17, "D_s±"); // 431
+    x3->SetBinLabel(18, "B0"); // 511
+    x3->SetBinLabel(19, "B+"); // 521
+    x3->SetBinLabel(20, "B0_s"); // 531
+    x3->SetBinLabel(21, "Baryon"); // 1000 -
+  }
+
+  void process(soa::Join<aod::Collisions, aod::McCollisionLabels>::iterator const& collision,
+							 soa::Join<aod::FwdTracks, aod::McFwdTrackLabels, aod::FwdTracksDCA> const& fwdtracks, 
+							 soa::Join<aod::MFTTracks, aod::McMFTTrackLabels> const& mfttracks,
+							 aod::McParticles const& MCparticle,
+               aod::AmbiguousMFTTracks const& amfttracks,
+							 aod::McCollisions const&,
+               aod::MCPair const& truepairs)
+  {
+    if(collision.has_mcCollision()){
+      vector<uint64_t> ambTrackIds;
+      ambTrackIds.clear();
+      for(auto& amfttrack : amfttracks){
+        ambTrackIds.push_back(amfttrack.mfttrackId());
+      }
+
+      for(auto& fwdtrack : fwdtracks){
+        if(!fwdtrack.has_collision() || !fwdtrack.has_mcParticle()) continue;
+        if(fwdtrack.trackType()!=0) continue;
+        auto mcParticle_fwd = fwdtrack.mcParticle();
+        if(fabs(mcParticle_fwd.pdgCode())!=13 || !mcParticle_fwd.has_mothers()) continue;
+        auto fwdColId = fwdtrack.collisionId();
+        auto mcMoms = mcParticle_fwd.mothers_as<aod::McParticles>();
+        auto mcMom = mcMoms.back();
+        auto mcMom_f = mcMoms.front();
+        auto Daughters = mcMom.daughters_as<aod::McParticles>();
+
+        if(fabs(mcMom_f.pdgCode())!=421) continue;
+
+        int mucolid, mcmuid, mckid_org, kpdg, estmumomid, estkmomid, mumom, kmom_org, storemuid, estmck, estpdg;
+        float mupt, Col_x, Col_y, Col_z, mudcaX, mudcaY, mumftX, mumftY, mumftZ, kdcaX, kdcaY, kmftX, kmftY, kmftZ, mumcX, mumcY, mumcZ, kmcZ, estx, esty, estz;
+        float estdcax, estdcay;
+        
+        for(auto& mfttrack : mfttracks){
+          if(!mfttrack.has_collision() || !mfttrack.has_mcParticle()) continue;
+          //muon like
+          if(mfttrack.collisionId()==fwdColId && mfttrack.mcParticleId()==fwdtrack.mcParticleId()){
+            Col_x = collision.posX();
+            Col_y = collision.posY();
+            Col_z = collision.posZ();
+            auto mcParticle_mft = mfttrack.mcParticle();
+            double mftchi2 = mfttrack.chi2();
+            SMatrix5 mftpars(mfttrack.x(), mfttrack.y(), mfttrack.phi(), mfttrack.tgl(), mfttrack.signed1Pt());
+            vector<double> mftv1;
+            SMatrix55 mftcovs(mftv1.begin(), mftv1.end());
+            o2::track::TrackParCovFwd mftpars1{mfttrack.z(), mftpars, mftcovs, mftchi2};
+            mftpars1.propagateToZlinear(Col_z);
+            mupt = fwdtrack.pt();
+            mudcaX = mftpars1.getX();
+            mudcaY = mftpars1.getY();
+            mumftX = mfttrack.x();
+            mumftY = mfttrack.y();
+            mumftZ = mfttrack.z();
+            mumcX = mcParticle_mft.vx();
+            mumcY = mcParticle_mft.vy();
+            mumcZ = mcParticle_mft.vz();
+            mupt = mcParticle_mft.pt();
+            mucolid = mfttrack.collisionId();
+            mcmuid = mfttrack.mcParticleId();
+            if(!mcParticle_mft.has_mothers()) continue;
+            auto muMoms = mcParticle_mft.mothers_as<aod::McParticles>();
+            mumom = muMoms.back().globalIndex();
+
+            const double dcat_mean = 0.04678;
+            const double dcat_std = 0.05337;
+            for(auto& truepair : truepairs){
+              if(truepair.muid()==mcmuid && truepair.colid()==mucolid){
+                if(sqrt(pow(truepair.kdcax(),2)+pow(truepair.kdcay(),2))>=(dcat_mean+3*dcat_std)) continue;
+                //Muon pT cut
+                //if(truepair.mupt()<=1 || truepair.mupt()>2) continue;
+                if(storemuid==mcmuid) LOGF(info, "Analysis MuID: %d", mcmuid);
+                //for(int cut=1; cut<=2000; cut++){
+                  //float fcut = -5;//-0.01*cut;
+                  int colID_ref;
+                  float mft_xy;
+                  float dist_2track = 10000;
+                  for(auto& mfttrack2 : mfttracks){
+                    if(mfttrack2.has_collision() && mfttrack2.has_mcParticle()){
+                      if(mfttrack2.collisionId()==fwdColId && mfttrack2.mcParticleId()!=mcmuid){
+                        if(find(ambTrackIds.begin(), ambTrackIds.end(), mfttrack2.globalIndex()) != ambTrackIds.end()) continue;
+                        auto mcParticle_mft2 = mfttrack2.mcParticle();
+                        double mftchi2 = mfttrack2.chi2();
+                        SMatrix5 mftpars(mfttrack2.x(), mfttrack2.y(), mfttrack2.phi(), mfttrack2.tgl(), mfttrack2.signed1Pt());
+                        vector<double> mftv2;
+                        SMatrix55 mftcovs2(mftv2.begin(), mftv2.end());
+                        o2::track::TrackParCovFwd mftpars2{mfttrack2.z(), mftpars, mftcovs2, mftchi2};
+                        mftpars2.propagateToZlinear(Col_z);
+                        kdcaX = mftpars2.getX();
+                        kdcaY = mftpars2.getY();
+                        kmftX = mfttrack2.x();
+                        kmftY = mfttrack2.y();
+                        kmftZ = mfttrack2.z();
+                        kmcZ = mcParticle_mft2.vz();
+                        mckid_org = mfttrack2.mcParticleId();
+                        kpdg = mcParticle_mft2.pdgCode();
+                        if(mcParticle_mft2.has_mothers()){
+                          auto kMoms = mcParticle_mft2.mothers_as<aod::McParticles>();
+                          kmom_org = kMoms.back().globalIndex();
+                        }else{
+                          kmom_org = -1;
+                        }
+                        double dcat = sqrt(pow(kdcaX-Col_x,2)+pow(kdcaY-Col_y,2));
+                        double mftxy = sqrt(pow(mumftX-kmftX,2)+pow(mumftY-kmftY,2));
+                        histos.fill(HIST("MFT_XY_All"), mftxy);
+
+                        if(mckid_org!=truepair.kid()){
+                          histos.fill(HIST("DCAT_all"), dcat);
+                        }
+                        //MFT XY cut (muonXY-chargedXY)
+                        //if(mftxy>10) continue;
+                        if(mcParticle_mft2.producedByGenerator()==true) histos.fill(HIST("Dist_Primary"), dcat);
+                        //DCAT cut
+                        if(dcat>=(dcat_mean+3*dcat_std)) continue;
+
+                        auto Nax = mudcaX - mumftX;
+                        auto Nay = mudcaY - mumftY;
+                        auto Naz = Col_z - mumftZ;
+                        auto Ncx = kdcaX - kmftX;
+                        auto Ncy = kdcaY - kmftY;
+                        auto Ncz = Col_z - kmftZ;
+                        auto A1 = Nax*Nax + Nay*Nay + Naz*Naz;
+                        auto A2 = -(Nax*Ncx + Nay*Ncy + Naz*Ncz);
+                        auto A3 = (mumftX-kmftX)*Nax + (mumftY-kmftY)*Nay + (mumftZ-kmftZ)*Naz;
+                        auto B1 = A2;
+                        auto B2 = Ncx*Ncx + Ncy*Ncy + Ncz*Ncz;
+                        auto B3 = (kmftX-mumftX)*Ncx + (kmftY-mumftY)*Ncy + (kmftZ-mumftZ)*Ncz;
+                        auto t = (A1*B3-A3*B1)/(A2*B1-A1*B2);
+                        auto s = -((A2*t+A3)/A1);
+                        float pre_mux = mumftX + s*Nax;
+                        float pre_muy = mumftY + s*Nay;
+                        float pre_muz = mumftZ + s*Naz;
+                        float pre_kx = kmftX + t*Ncx;
+                        float pre_ky = kmftY + t*Ncy;
+                        float pre_kz = kmftZ + t*Ncz;
+                        //float k_unit = sqrt(pow(Ncx,2)+pow(Ncy,2)+pow(Ncz,2));
+                        float pcax_org = ((pre_mux+pre_kx)/2) - Col_x;
+                        float pcay_org = ((pre_muy+pre_ky)/2) - Col_y;
+                        float pcaz_org = ((pre_muz+pre_kz)/2) - Col_z;
+
+                        float pcax, pcay, pcaz, r_xyz;
+                        int kmom, mckid;
+
+                        //float s_org = (truepair.secverz()-mumftZ)/Naz;
+                        //float t_org = (truepair.secverz()-kmftZ)/Ncz;
+                        //float actr_r = sqrt(pow((mumftX+s_org*Nax)-(kmftX+t_org*Ncx), 2)+pow((mumftY+s_org*Nay)-(kmftY+t_org*Ncy), 2)+pow((mumftZ+s_org*Naz)-(kmftZ+t_org*Ncz), 2));
+
+                        //if(pcaz_org<0 && pcaz_org>=fcut){
+                        r_xyz = sqrt(pow(pre_kx-pre_mux, 2)+pow(pre_ky-pre_muy, 2)+pow(pre_kz-pre_muz, 2));
+                        pcax = pcax_org;
+                        pcay = pcay_org;
+                        pcaz = pcaz_org;
+                        kmom = kmom_org;
+                        mckid = mckid_org;
+
+                        if(dist_2track>=r_xyz){
+                          dist_2track = r_xyz;
+                          estx = pcax;
+                          esty = pcay;
+                          estz = pcaz;
+                          estmumomid = mumom;
+                          estkmomid = kmom;
+                          estmck = mckid;
+                          estdcax = kdcaX;
+                          estdcay = kdcaY;
+                          estpdg = kpdg;
+                          mft_xy = sqrt(pow(mumftX-kmftX,2)+pow(mumftY-kmftY,2));
+                          colID_ref = mfttrack2.collisionId();
+                        }
+                        //}
+                      }
+                    }
+                  }
+                  histos.fill(HIST("Est_PCAZ_all"), estz);
+                  if(estmumomid==estkmomid && truepair.kid()==estmck) histos.fill(HIST("Est_PCAZ_Correct"), estz);
+                  //Z axis cut
+                  if(estz<0 && estz>((-0.8555)*2+(-0.2236))){
+                    histos.fill(HIST("Est_PCAZ_zcut"), estz);
+                    if(estmumomid==estkmomid && truepair.kid()==estmck){
+                      histos.fill(HIST("Est_PCAZ_True"), estz);
+                    }
+                    
+                    if(fabs(estpdg)<38) histos.fill(HIST("pairPDG"), 0);
+                    if(fabs(estpdg)==111) histos.fill(HIST("pairPDG"), 1);
+                    if(fabs(estpdg)==211) histos.fill(HIST("pairPDG"), 2);
+                    if(fabs(estpdg)==113) histos.fill(HIST("pairPDG"), 3);
+                    if(fabs(estpdg)==130) histos.fill(HIST("pairPDG"), 4);
+                    if(fabs(estpdg)==221) histos.fill(HIST("pairPDG"), 5);
+                    if(fabs(estpdg)==223) histos.fill(HIST("pairPDG"), 6);
+                    if(fabs(estpdg)==310) histos.fill(HIST("pairPDG"), 7);
+                    if(fabs(estpdg)==313) histos.fill(HIST("pairPDG"), 8);
+                    if(fabs(estpdg)==321) histos.fill(HIST("pairPDG"), 9);
+                    if(fabs(estpdg)==323) histos.fill(HIST("pairPDG"), 10);
+                    if(fabs(estpdg)==331) histos.fill(HIST("pairPDG"), 11);
+                    if(fabs(estpdg)==333) histos.fill(HIST("pairPDG"), 12);
+                    if(fabs(estpdg)==411) histos.fill(HIST("pairPDG"), 13);
+                    if(fabs(estpdg)==413) histos.fill(HIST("pairPDG"), 14);
+                    if(fabs(estpdg)==421) histos.fill(HIST("pairPDG"), 15);
+                    if(fabs(estpdg)==431) histos.fill(HIST("pairPDG"), 16);
+                    if(fabs(estpdg)==511) histos.fill(HIST("pairPDG"), 17);
+                    if(fabs(estpdg)==521) histos.fill(HIST("pairPDG"), 18);
+                    if(fabs(estpdg)==531) histos.fill(HIST("pairPDG"), 19);
+                    if(fabs(estpdg)>1000) histos.fill(HIST("pairPDG"), 20);
+                  }
+                storemuid = mcmuid;
+                //}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+/*struct MyAnalysisTask{
   HistogramRegistry histos{"histos", {}, OutputObjHandlingPolicy::AnalysisObject};
   Configurable<int> nBinsPt{"nBinsPt", 25010, "N bins pt axis"};
   Configurable<int> nBinsZ{"nBinsZ", 1100010, "N bins in Z axis"};
@@ -670,11 +968,12 @@ struct MyAnalysisTask{
       }
     }
   }
-};
+};*/
 
 WorkflowSpec defineDataProcessing(ConfigContext const& cfgc)
 {
   return WorkflowSpec{
     adaptAnalysisTask<McInfomation>(cfgc),
-    adaptAnalysisTask<MyAnalysisTask>(cfgc)};
+    adaptAnalysisTask<Mytaskv2>(cfgc)};
+    //adaptAnalysisTask<MyAnalysisTask>(cfgc)};
 }
