@@ -171,7 +171,7 @@ struct McInformation{
   void init(InitContext const&){
     const AxisSpec axisParType{5, -0.5, 4.5, "ParticleType"};
     const AxisSpec axisDCAT{100010, -0.0005, 10.0005, "DCAT"};
-    const AxisSpec axispT{501, -0.05, 50.05, "p(GeV/c)"};
+    const AxisSpec axispT{501, -0.05, 50.05, "pT(GeV/c)"};
     const AxisSpec axisZ{nBinsZ, -60.0005, 50.0005, "z(cm)"};
     const AxisSpec axisAdd{5000, 0, 500, "sum(cm)"};
     const AxisSpec axisPCAD{30001, -0.0005, 30.0005, "cm"};
@@ -190,7 +190,6 @@ struct McInformation{
     histos.add("Delta_XY_mu", "Delta_XY_mu", kTH1F, {axisDelta});
     histos.add("Delta_XY_pair", "Delta_XY_pair", kTH1F, {axisDelta});
     histos.add("Delta_XY_BG", "Delta_XY_BG", kTH1F, {axisDelta});
-    histos.add("DCAT_pi", "DCAT_pi", kTH1F, {axisDCAT});
 
     histos.add("Beauty_mu_DCAT", "Beauty_mu_DCAT", kTH1F, {axisDCAT});
     histos.add("Beauty_mu_DCAT_1_pT_15", "Beauty_mu_DCAT_1_pT_15", kTH1F, {axisDCAT});
@@ -215,9 +214,8 @@ struct McInformation{
     histos.add("pCharm_pair_DCAT", "pCharm_pair_DCAT", kTH1F, {axisDCAT});
     histos.add("pCharm_mu_eta", "pCharm_mu_eta", kTH1F, {axisEta});
     histos.add("pCharm_pair_eta", "pCharm_pair_eta", kTH1F, {axisEta});
-    histos.add("TwoComp_InMFT", "TwoComp_InMFT", kTH1F, {axisEta});
     histos.add("pCharm_pair_phi", "pCharm_pair_phi", kTH1F, {axisPhi});
-    histos.add("pCharm_vs_mu_p", "pCharm_vs_mu_p", kTH2F, {axispT, axispT});
+    histos.add("pCharm_vs_mu_pt", "pCharm_vs_mu_pt", kTH2F, {axispT, axispT});
     histos.add("pCharm_mupt_totald", "pCharm_mupt_totald", kTH2F, {axispT, axisAdd});
     histos.add("pCharm_pcad", "pCharm_pcad", kTH1F, {axisPCAD});
     histos.add("pCharm_pcar", "pCharm_pcar", kTH1F, {axisPCAD});
@@ -228,8 +226,6 @@ struct McInformation{
     histos.add("pCharm_Mass_wo_neutrino_MFT", "pCharm_Mass_wo_neutrino_MFT", kTH1F, {axisMass});
     histos.add("pCharm_InvMass_Fake", "pCharm_InvMass_Fake", kTH1F, {axisMass});
     histos.add("pCharm_InvMass_Fake_MFT", "pCharm_InvMass_Fake_MFT", kTH1F, {axisMass});
-    histos.add("InvMass_K_aspi", "InvMass_K_aspi", kTH1F, {axisMass});
-    histos.add("InvMass_BG_aspi", "InvMass_BG_aspi", kTH1F, {axisMass});
     histos.add("CosSim_true", "CosSim_true", kTH1F, {axisCos});
 
     histos.add("npCharm_mu_DCAT", "npCharm_mu_DCAT", kTH1F, {axisDCAT});
@@ -259,7 +255,6 @@ struct McInformation{
   {
     const double k_mass = 0.493677;
     const double mu_mass = 0.105658;
-    const double pi_mass = 0.139571;
     if(collision.has_mcCollision()){
       if(fabs(collision.posZ())<10){
         const int mcCol_id = collision.mcCollisionId();
@@ -287,7 +282,6 @@ struct McInformation{
           auto mumom = mcParticle_fwd.mothers_first_as<aod::McParticles>();
           auto momid = mumom.globalIndex();
           double mompt = mumom.pt();
-          double momp = mumom.p();
           auto Daughters = mumom.daughters_as<aod::McParticles>();
 
           int muid=0, pid_1=0, pid_2=0, ppdg_1=0, ppdg_2=0;
@@ -535,7 +529,6 @@ struct McInformation{
                     p1secvery = mcParticle_mft.vy();
                     p1secverz = mcParticle_mft.vz();
                     p1pdg = fabs(mcParticle_mft.pdgCode());
-                    double p_k = mcParticle_mft.p();
                     HasPairTrack = true;
                     for(int i=0; i<=10000; i++){
                       auto cut_z = Col_z + (-0.2236-3*0.3081)+0.005*i;
@@ -547,8 +540,6 @@ struct McInformation{
                     if(fabs(mcParticle_mft.pdgCode())==321 && fabs(mumom.pdgCode())==421){
                       mass_no_neu = sqrt(pow(e_mu+e_k,2) - (pow(px_mu+px_k,2)+pow(py_mu+py_k,2)+pow(pz_mu+pz_k,2)));
                       histos.fill(HIST("pCharm_Mass_wo_neutrino"), mass_no_neu);
-                      double mass_no_neu_aspi = sqrt(pow(e_mu+sqrt(pow(pi_mass,2)+pow(p_k,2)),2) - (pow(px_mu+px_k,2)+pow(py_mu+py_k,2)+pow(pz_mu+pz_k,2)));
-                      histos.fill(HIST("InvMass_K_aspi"), mass_no_neu_aspi);
                       
                       double px_k_mft = mfttrack.px();
                       double py_k_mft = mfttrack.py();
@@ -590,25 +581,17 @@ struct McInformation{
                   double bg_delta_xy = sqrt(pow(mftpars2.getX()-mfttrack.x(),2)+pow(mftpars2.getY()-mfttrack.y(),2));
                   histos.fill(HIST("Delta_XY_BG"), bg_delta_xy);
 
-                  if(fabs(mcParticle_mft.pdgCode())==211){
-                    double pi_DCAT = sqrt(pow(mftpars2.getX()-Col_x,2)+pow(mftpars2.getY()-Col_y,2));
-                    histos.fill(HIST("DCAT_pi"), pi_DCAT);
-                  }
-
                   if(fabs(mcParticle_mft.pdgCode())==211 && fabs(mumom.pdgCode())==421){
                     double px_pi = mcParticle_mft.px();
                     double py_pi = mcParticle_mft.py();
                     double pz_pi = mcParticle_mft.pz();
                     double p_pi = mcParticle_mft.p();
-                    double e_pi = mcParticle_mft.e();
                     double px_pi_mft = mfttrack.px();
                     double py_pi_mft = mfttrack.py();
                     double pz_pi_mft = mfttrack.pz();
                     double p_pi_mft = mfttrack.p();
                     double inv_mass_fake = sqrt(pow(e_mu+sqrt(pow(k_mass,2)+pow(p_pi,2)),2) - (pow(px_mu+px_pi,2)+pow(py_mu+py_pi,2)+pow(pz_mu+pz_pi,2)));
                     histos.fill(HIST("pCharm_InvMass_Fake"), inv_mass_fake);
-                    double inv_mass_fake_aspi = sqrt(pow(e_mu+e_pi,2) - (pow(px_mu+px_pi,2)+pow(py_mu+py_pi,2)+pow(pz_mu+pz_pi,2)));
-                    histos.fill(HIST("InvMass_BG_aspi"), inv_mass_fake_aspi);
                     double inv_mass_fake_mft = sqrt(pow(sqrt(pow(mu_mass,2)+pow(p_mu_mft,2))+sqrt(pow(k_mass,2)+pow(p_pi_mft,2)), 2) - (pow(px_mu_mft+px_pi_mft,2)+pow(py_mu_mft+py_pi_mft,2)+pow(pz_mu_mft+pz_pi_mft,2)));
                     histos.fill(HIST("pCharm_InvMass_Fake_MFT"), inv_mass_fake_mft);
                   }
@@ -741,7 +724,7 @@ struct McInformation{
               }else if(PartType==3){ // Prompt Charm
                 histos.fill(HIST("pCharm_pair_mu_DCAT"), dcat_mu);
                 histos.fill(HIST("pCharm_pair_DCAT"), dcat_pair);
-                histos.fill(HIST("pCharm_vs_mu_p"), p_mu_mft, momp);
+                histos.fill(HIST("pCharm_vs_mu_pt"), mupt, mompt);
                 histos.fill(HIST("pCharm_mupt_totald"), mupt, dist_sum);
                 histos.fill(HIST("pCharm_pcad"), pcaD);
                 histos.fill(HIST("pCharm_totald"), dist_sum);
@@ -768,6 +751,8 @@ struct MyAnalysisTask{
     const AxisSpec axisDCAT{100010, -0.0005, 10.0005, "DCAT"};
     const AxisSpec axisCut{11, -0.5, 10.5, "Cut_DCAT(cm)"};
     const AxisSpec axisRank{5, 0.5, 5.5, "Rank"};
+    const AxisSpec axisRankv2{100, 0.5, 100.5, "Rank"};
+    const AxisSpec axisMult{500, 0.5, 500.5, "Multiplicity"};
     const AxisSpec axisSigma{501, 0.005, 5.005, "Sigma"};
     const AxisSpec axisPCAD_mc{30001, -0.0005, 30.0005, "cm"};
     const AxisSpec axisMass{10001, -0.0005, 10.0005, "GeV/c^2"};
@@ -819,6 +804,10 @@ struct MyAnalysisTask{
     histos.add("CosSim_fake", "CosSim_fake", kTH1F, {axisCos});
     histos.add("Add_dist_true", "Add_dist_true", kTH1F, {axisAddDist});
     histos.add("Add_dist_fake", "Add_dist_fake", kTH1F, {axisAddDist});
+    histos.add("HasPair_wincut", "HasPair_wincut", kTH1F, {axisRankv2});
+    histos.add("True_first", "True_first", kTH1F, {axisMult});
+    histos.add("Fake_first", "Fake_first", kTH1F, {axisMult});
+    histos.add("BG_InvMass", "BG_InvMass", kTH1F, {axisMass});
 
     histos.add("Sigma_BG_All", "Sigma_BG_All", kTH2F, {axisSigma, axisSigma});
 
@@ -975,6 +964,10 @@ struct MyAnalysisTask{
               double fwdmftX = fwdtrack.x();
               double fwdmftY = fwdtrack.y();
               double fwdmftZ = fwdtrack.z();
+              double fwd_px = fwdtrack.px();
+              double fwd_py = fwdtrack.py();
+              double fwd_pz = fwdtrack.pz();
+              double fwd_p = fwdtrack.p();
               double fwddcat = sqrt(pow(fwddcaX-Col_x,2)+pow(fwddcaY-Col_y,2));
               histos.fill(HIST("BG_DCAT_all"), fwdtrack.pt());
               if(fwddcat>0.01 && fwddcat<0.1){
@@ -1002,6 +995,11 @@ struct MyAnalysisTask{
                   double canmftX = mfttrack.x();
                   double canmftY = mfttrack.y();
                   double canmftZ = mfttrack.z();
+
+                  double canpx = mfttrack.px();
+                  double canpy = mfttrack.py();
+                  double canpz = mfttrack.pz();
+                  double canp = mfttrack.p();
 
                   auto unit_Na = sqrt(pow(fwdmftX-fwddcaX,2)+pow(fwdmftY-fwddcaY,2)+pow(fwdmftZ-Col_z,2));
                   auto unit_Nc = sqrt(pow(canmftX-candcaX,2)+pow(canmftY-candcaY,2)+pow(canmftZ-Col_z,2));
@@ -1069,11 +1067,48 @@ struct MyAnalysisTask{
                   double ans = 0;
                   if(mcid==truepair.pairid_1()) ans=1;
 
-                  vector<double> pardata_r = {r_xyz, cosxy, mcid, fabs(mcParticle_mft.pdgCode()), pcaX, pcaY, pcaZ, add_dist, dcat, dcaxy_diff, out_colid, truepair.pt(), vec_cor, ans};
+                  double inv_mass_candidate = sqrt(pow(sqrt(pow(mu_mass,2)+pow(fwd_p,2))+sqrt(pow(k_mass,2)+pow(canp,2)), 2) - (pow(fwd_px+canpx,2)+pow(fwd_py+canpy,2)+pow(fwd_pz+canpz,2)));
+
+                  vector<double> pardata_r = {r_xyz, cosxy, mcid, fabs(mcParticle_mft.pdgCode()), pcaX, pcaY, pcaZ, add_dist, dcat, dcaxy_diff, out_colid, truepair.pt(), vec_cor, ans, inv_mass_candidate};
                   data_r_fwd.push_back(pardata_r);
                 }
               }
               sort(data_r_fwd.begin(), data_r_fwd.end());
+              if(data_r_fwd.at(0).at(8)<0.1) histos.fill(HIST("BG_InvMass"), data_r_fwd.at(0).at(14));
+              /*if(truepair.particletype()==3){
+                int counter_cut=0;
+                for(int i=0; i<data_r_fwd.size(); i++){
+                  if(data_r_fwd.at(i).at(0)>0.05){
+                    cout << endl;
+                    break;
+                  }
+                  if(data_r_fwd.at(i).at(1)>0.99){
+                    if(data_r_fwd.at(i).at(7)<30){
+                      if(data_r_fwd.at(i).at(8)>0.01 && data_r_fwd.at(i).at(8)<0.1){
+                        if(data_r_fwd.at(i).at(9)<0.2 && data_r_fwd.at(i).at(9)>0.02){
+                          if(data_r_fwd.at(i).at(14)<2.2){
+                            if(counter_cut==0){
+                              cout << "BG_Data = { " << data_r_fwd.at(i).at(0) << ", " << data_r_fwd.at(i).at(1) << ", " << data_r_fwd.at(i).at(7) << ", " << data_r_fwd.at(i).at(8) << ", " << data_r_fwd.at(i).at(9) << ", " << data_r_fwd.at(i).at(14) << ", " << data_r_fwd.at(i).at(3) << ", " << data_r_fwd.at(i).at(13) << " }";
+                              counter_cut++;
+                              if(data_r_fwd.at(i).at(13)==1){
+                                histos.fill(HIST("True_first"), data_r_fwd.size());
+                              }else{
+                                histos.fill(HIST("Fake_first"), data_r_fwd.size());
+                              }
+                            }else{
+                              cout << "," << endl << "{ " << data_r_fwd.at(i).at(0) << ", " << data_r_fwd.at(i).at(1) << ", " << data_r_fwd.at(i).at(7) << ", " << data_r_fwd.at(i).at(8) << ", " << data_r_fwd.at(i).at(9) << ", " << data_r_fwd.at(i).at(14) << ", " << data_r_fwd.at(i).at(3) << ", " << data_r_fwd.at(i).at(13) << " }";
+                            }
+                            if(data_r_fwd.at(i).at(13)==1){
+                              histos.fill(HIST("HasPair_wincut"), i+1);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }*/
+
               histos.fill(HIST("BG_pcar"), data_r_fwd.at(0).at(0));
               histos.fill(HIST("BG_c_PCAD"), sqrt(pow(data_r_fwd.at(0).at(4),2)+pow(data_r_fwd.at(0).at(5),2)+pow(data_r_fwd.at(0).at(6),2)));
               for(int i=0; i<data_r_fwd.size(); i++){
@@ -1170,8 +1205,6 @@ struct MyAnalysisTask{
           }
 
           vector<vector<double>> data_r;
-          vector<vector<double>> data_add;
-          vector<vector<double>> data_cos;
 
           for(auto& mfttrack : mfttracks){
             if(!mfttrack.has_collision() || !mfttrack.has_mcParticle()) continue;
@@ -1283,15 +1316,9 @@ struct MyAnalysisTask{
 
               vector<double> pardata_r = {r_xyz, cosxy, mcid, fabs(mcParticle_mft.pdgCode()), pcaX, pcaY, pcaZ, add_dist, dcat, dcaxy_diff, out_colid, truepair.pt(), vec_cor, ans, inv_mass_candidate};
               data_r.push_back(pardata_r);
-              vector<double> pardata_add = {add_dist, r_xyz, cosxy, mcid, fabs(mcParticle_mft.pdgCode()), pcaX, pcaY, pcaZ, dcat, ans};
-              data_add.push_back(pardata_add);
-              vector<double> pardata_cos = {cosxy, r_xyz, mcid, fabs(mcParticle_mft.pdgCode()), pcaX, pcaY, pcaZ, add_dist, dcat, ans};
-              data_cos.push_back(pardata_cos);
             }
           }
           sort(data_r.begin(), data_r.end());
-          sort(data_add.begin(), data_add.end());
-          sort(data_cos.rbegin(), data_cos.rend());
           double pcad = sqrt(pow(data_r.at(0).at(4),2)+pow(data_r.at(0).at(5),2)+pow(data_r.at(0).at(6),2));
 
           if(truepair.particletype()==3){
@@ -1319,7 +1346,6 @@ struct MyAnalysisTask{
             }
           }
 
-          
           if(truepair.particletype()==3){
             for(int i=0; i<data_r.size(); i++){
               auto pcad_all = sqrt(pow(data_r.at(i).at(4),2)+pow(data_r.at(i).at(5),2)+pow(data_r.at(i).at(6),2));
@@ -1329,56 +1355,6 @@ struct MyAnalysisTask{
                 histos.fill(HIST("AllFakeMatch_pCharm_pcad"), pcad_all);
               }
             }
-
-            double all_pcad_in_vec = 0;
-            double all_dcatdiff_in_vec = 0;
-            double bg_pcad_in_vec = 0;
-            double bg_dcatdiff_in_vec = 0;
-            for(int i=0; i<data_r.size(); i++){
-              all_pcad_in_vec += sqrt(pow(data_r.at(i).at(4),2)+pow(data_r.at(i).at(5),2)+pow(data_r.at(i).at(6),2));
-              all_dcatdiff_in_vec += data_r.at(i).at(9);
-              if(data_r.at(i).at(13)!=1){
-                //histos.fill(HIST("BG_pcar"), data_r.at(i).at(0));
-                bg_pcad_in_vec += sqrt(pow(data_r.at(i).at(4),2)+pow(data_r.at(i).at(5),2)+pow(data_r.at(i).at(6),2));
-                bg_dcatdiff_in_vec += data_r.at(i).at(9);
-              }
-            }
-            //double datasize = data_r.size();
-            //double ave_pcad_in_vec = all_pcad_in_vec/datasize;
-            //double ave_dcatdiff_in_vec = all_dcatdiff_in_vec/datasize;
-            //double ave_bg_pcad = bg_pcad_in_vec/(datasize-1);
-            //double ave_bg_dcatdiff = bg_dcatdiff_in_vec/(datasize-1);
-
-            double std_all = 0, std_bg = 0;
-            /*int counter=0;
-            for(int i=0; i<data_r.size(); i++){
-              //double sqare_pcad_diff = pow(ave_pcad_in_vec-sqrt(pow(data_r.at(i).at(4),2)+pow(data_r.at(i).at(5),2)+pow(data_r.at(i).at(6),2)),2);
-              //double sqare_dcatdiff_diff = pow(ave_dcatdiff_in_vec-data_r.at(i).at(9),2);
-
-              //std_all += sqare_pcad_diff;
-              if(data_r.at(i).at(13)!=1){
-                std_bg += pow(ave_bg_pcad-sqrt(pow(data_r.at(i).at(4),2)+pow(data_r.at(i).at(5),2)+pow(data_r.at(i).at(6),2)),2);
-              }
-              
-              for(int j=0; j<data_r.at(0).size(); j++){
-                if(counter==0){
-                  cout << "data_r = { " << data_r.at(i).at(j) << ", ";
-                  counter++;
-                }else if(j==(data_r.at(0).size()-1)){
-                  if(i==(data_r.size()-1)){
-                    cout << data_r.at(i).at(j) << " }" << endl;
-                  }else{
-                    cout << data_r.at(i).at(j) << " }, " << endl << "{ ";
-                  }
-                }
-                else{
-                  cout << data_r.at(i).at(j) << ", ";
-                }
-              }
-            }*/
-            double sigma_all = sqrt(std_all/data_r.size());
-            double sigma_bg = sqrt(std_bg/(data_r.size()-1));
-            histos.fill(HIST("Sigma_BG_All"), sigma_bg, sigma_all);
           
           }else if(truepair.particletype()==1){
             for(int i=0; i<data_r.size(); i++){
@@ -1401,6 +1377,44 @@ struct MyAnalysisTask{
           }
           
           // Use PCA Info.
+
+          //1109~
+          if(truepair.particletype()==3){
+            int counter_cut=0;
+            for(int i=0; i<data_r.size(); i++){
+              if(data_r.at(i).at(0)>0.05){
+                cout << endl;
+                break;
+              }
+              if(data_r.at(i).at(1)>0.99){
+                if(data_r.at(i).at(7)<30){
+                  if(data_r.at(i).at(8)>0.01 && data_r.at(i).at(8)<0.1){
+                    if(data_r.at(i).at(9)<0.2 && data_r.at(i).at(9)>0.02){
+                      if(data_r.at(i).at(14)<2.2){
+                        if(counter_cut==0){
+                          cout << "Data = { " << data_r.at(i).at(0) << ", " << data_r.at(i).at(1) << ", " << data_r.at(i).at(7) << ", " << data_r.at(i).at(8) << ", " << data_r.at(i).at(9) << ", " << data_r.at(i).at(14) << ", " << data_r.at(i).at(3) << ", " << data_r.at(i).at(13) << " }";
+                          counter_cut++;
+                          if(data_r.at(i).at(13)==1){
+                            histos.fill(HIST("True_first"), data_r.size());
+                          }else{
+                            histos.fill(HIST("Fake_first"), data_r.size());
+                          }
+                        }else{
+                          cout << "," << endl << "{ " << data_r.at(i).at(0) << ", " << data_r.at(i).at(1) << ", " << data_r.at(i).at(7) << ", " << data_r.at(i).at(8) << ", " << data_r.at(i).at(9) << ", " << data_r.at(i).at(14) << ", " << data_r.at(i).at(3) << ", " << data_r.at(i).at(13) << " }";
+                        }
+                        if(data_r.at(i).at(13)==1){
+                          histos.fill(HIST("HasPair_wincut"), i+1);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+
+          //~1109
           if(truepair.particletype()==3){
             for(int i=0; i<data_r.size(); i++){
               auto pcad_all = sqrt(pow(data_r.at(i).at(4),2)+pow(data_r.at(i).at(5),2)+pow(data_r.at(i).at(6),2));
