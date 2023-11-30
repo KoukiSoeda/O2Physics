@@ -663,6 +663,7 @@ struct MyAnalysisTask{
             }if(PartType==3){
               if(fwd_dcat<DCAT_max && fwd_dcat>DCAT_min){
                 histos.fill(HIST("True_pCharm_DCAT_pT"), fwdpt);
+              }
             }
           }
 
@@ -1130,8 +1131,6 @@ struct MyAnalysisTask{
         }
       }
     }
-
-
   }
 };
 
