@@ -192,6 +192,7 @@ struct McInformation{
       auto mcParticle_fwd = fwdtrack.mcParticle();
       if(fwdtrack.trackType()==1 || fwdtrack.trackType()==3 || fwdtrack.trackType()==4 ) continue;
       if(fwdtrack.eta()<=(-3.6) || fwdtrack.eta()>=(-2.5)) continue;
+      if(fwdtrack.chi2()>1.3 || fwdtrack.pt()<0.5) continue;
 
       int mcCol_id;
       double Col_x, Col_y, Col_z;
@@ -211,6 +212,7 @@ struct McInformation{
       auto mumom = mcParticle_fwd.mothers_first_as<aod::McParticles>();
       int mom_pdg = mumom.pdgCode();
       auto Daughters = mumom.daughters_as<aod::McParticles>();
+      double muon_p = fwdtrack.p();
       
       // Muon Source
       int PartType = 0;
@@ -327,7 +329,8 @@ struct McInformation{
             }else if(PartType==4){
               histos.fill(HIST("BG_inMFT_DCAT"), mu_dcat);
             }
-            HasMuonTrack = true;
+            double pDCAT = muon_p*(sqrt(pow(mudcaX-Col_x,2)+pow(mudcaY-Col_y,2)));
+            if(pDCAT<120) HasMuonTrack = true;
           }
           if(mcParticle_mft.globalIndex()==pid_1){
             double mftchi2 = mfttrack.chi2();
@@ -424,6 +427,7 @@ struct McInformation{
   }
 };
 
+// 1203やること。→ FWD mu のカットをしっかりかけた状態で、Efficiency、Purityの計算
 struct MyAnalysisTask{
   HistogramRegistry histos{"histos", {}, OutputObjHandlingPolicy::AnalysisObject};
   Configurable<double> PCA_cut{"PCA_cut", 0.1, "Cut value for PCA"};
@@ -431,6 +435,8 @@ struct MyAnalysisTask{
   Configurable<double> DCAT_max{"DCAT_max", 0.2, "Upper limit of DCAT"};
   Configurable<double> CosSim_cut{"CosSim_cut", 0.99, "Cut value for Cosine Simiraliyty"};
   Configurable<double> Total_dist_cut{"Total_dist_cut", 30.0, "Cut value for total distance with mu track"};
+  Configurable<double> pDCAT{"pDCAT_cut", 120, "The unit of pDCAT is cm*GeV/c"};
+  Configurable<double> MUON_chi2{"MUON_chi2", 1.3, "Muons chi2 in the MUON arm"};
 
   Service<o2::ccdb::BasicCCDBManager> ccdb;
   Configurable<std::string> ccdburl{"ccdb-url", "http://alice-ccdb.cern.ch", "url of the ccdb repository"};
@@ -574,7 +580,6 @@ struct MyAnalysisTask{
           }
 
           if(mcParticle_fwd.globalIndex()!=truepair.muid()){
-            BG_NonPair_Muon = true;
             trackId = fwdtrack.matchMFTTrackId();
             SMatrix5 mupars(fwdtrack.x(), fwdtrack.y(), fwdtrack.phi(), fwdtrack.tgl(), fwdtrack.signed1Pt());
             vector<double> muv2;
@@ -595,11 +600,14 @@ struct MyAnalysisTask{
             fwdpz = fwdtrack.pz();
             double mc_p = mcParticle_fwd.p();
             double mc_z = mcParticle_fwd.vz();
+            double fwd_dcat = fwdp*sqrt(pow(mudcaX-Col_x,2)+pow(mudcaY-Col_y,2));
+            if(fwd_dcat>pDCAT) continue;
 
             bool IsSecondary = false;
             bool HasLightParent = false;
             bool HasCharmParent = false;
             bool HasBeautyParent = false;
+            BG_NonPair_Muon = true;
             while(mcParticle_fwd.has_mothers()){
               mcParticle_fwd = *(mcParticle_fwd.mothers_first_as<aod::McParticles>());
               const int pdgAbs(fabs(mcParticle_fwd.pdgCode()));
@@ -650,7 +658,6 @@ struct MyAnalysisTask{
             histos.fill(HIST("AllMuon_pT"), fwdpt);
 
             //Only DCAT Cut
-            double fwd_dcat = sqrt(pow(mudcaX-Col_x,2)+pow(mudcaY-Col_y,2));
             if(PartType==4){
               if(fwd_dcat<DCAT_max && fwd_dcat>DCAT_min){
                 histos.fill(HIST("Fake_pCharm_DCAT_pT"), fwdpt);
@@ -765,19 +772,27 @@ struct MyAnalysisTask{
       for(auto& fwdtrack : fwdtracks){
         if(fwdtrack.has_collision() && fwdtrack.has_mcParticle()){
           if(fwdtrack.eta()<=(-3.6) || fwdtrack.eta()>=(-2.5)) continue;
+          if(fwdtrack.chi2()>MUON_chi2 || fwdtrack.pt()>0.5) continue;
           auto mcParticle_fwd = fwdtrack.mcParticle();
           if(fabs(mcParticle_fwd.pdgCode())!=13) continue;
           LOGF(info, "Process is working...");
           double Col_x, Col_y, Col_z;
+          bool HasCol = false;
           for(auto& t_col : collisions){
             if(!t_col.has_mcCollision()) continue;
             if(t_col.mcCollisionId()==mcParticle_fwd.mcCollisionId()){
               Col_x = t_col.posX();
               Col_y = t_col.posY();
               Col_z = t_col.posZ();
+              HasCol = true;
+              break;
             }
           }
           if(fabs(Col_z)>10) continue;
+          if(HasCol==false){
+            LOGF(info, "There is no MC Collision...");
+            continue;
+          }
 
           auto trackId = fwdtrack.matchMFTTrackId();
           SMatrix5 mupars_bg(fwdtrack.x(), fwdtrack.y(), fwdtrack.phi(), fwdtrack.tgl(), fwdtrack.signed1Pt());
@@ -795,6 +810,9 @@ struct MyAnalysisTask{
           double bg_pt = fwdtrack.pt();
           double mc_bg_p = mcParticle_fwd.p();
           double mc_bg_z = mcParticle_fwd.vz();
+          double p_DCAT = fwdtrack.p()*sqrt(pow(bg_mudcaX-Col_x,2)+pow(bg_mudcaY-Col_y,2));
+
+          if(p_DCAT>pDCAT) continue;
 
           vector<double> bg_muv2;
           SMatrix55 bg_mucovs2(bg_muv2.begin(), bg_muv2.end());
@@ -947,19 +965,27 @@ struct MyAnalysisTask{
         }else if(!fwdtrack.has_collision() || !fwdtrack.has_mcParticle()){
           if(!fwdtrack.has_collision() && fwdtrack.has_mcParticle()){
             if(fwdtrack.eta()<=(-3.6) || fwdtrack.eta()>=(-2.5)) continue;
+            if(fwdtrack.chi2()>MUON_chi2 || fwdtrack.pt()>0.5) continue;
             auto mcParticle_fwd = fwdtrack.mcParticle();
             if(fabs(mcParticle_fwd.pdgCode())!=13) continue;
             LOGF(info, "Second Process is working...");
             double Col_x, Col_y, Col_z;
+            bool HasCol = false;
             for(auto& t_col : collisions){
               if(!t_col.has_mcCollision()) continue;
               if(t_col.mcCollisionId()==mcParticle_fwd.mcCollisionId()){
                 Col_x = t_col.posX();
                 Col_y = t_col.posY();
                 Col_z = t_col.posZ();
+                HasCol = true;
+                break;
               }
             }
             if(fabs(Col_z)>10) continue;
+            if(HasCol==false){
+              LOGF(info, "There is no MC Collision...");
+              continue;
+            }
 
             auto trackId = fwdtrack.matchMFTTrackId();
             SMatrix5 mupars_bg(fwdtrack.x(), fwdtrack.y(), fwdtrack.phi(), fwdtrack.tgl(), fwdtrack.signed1Pt());
@@ -977,6 +1003,10 @@ struct MyAnalysisTask{
             double bg_pt = fwdtrack.pt();
             double mc_bg_p = mcParticle_fwd.p();
             double mc_bg_z = mcParticle_fwd.vz();
+
+            double p_DCAT = fwdtrack.p()*sqrt(pow(bg_mudcaX-Col_x,2)+pow(bg_mudcaY-Col_y,2));
+
+            if(p_DCAT>pDCAT) continue;
 
             vector<double> bg_muv2;
             SMatrix55 bg_mucovs2(bg_muv2.begin(), bg_muv2.end());
